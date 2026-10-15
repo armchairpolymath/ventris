@@ -53,7 +53,8 @@ def _describe_move(line: ParsedLine, before: MachineState, after: MachineState) 
     else:
         where = "Move the nozzle to " + ", ".join(f"{a} {num(v)} mm" for a, v in axes)
     if axes == [("Z", line.number("Z"))]:
-        where = where.replace("Move the nozzle", "Change the nozzle height:", 1)
+        where = where.replace("Move the nozzle to", "Change the nozzle height to", 1)
+        where = where.replace("Move the nozzle by", "Change the nozzle height by", 1)
 
     if e is None:
         what = " without printing (a “travel” move)"
@@ -295,6 +296,16 @@ def _describe_lamp(line, before, after) -> str:
     return f"Turn {state} {which}."
 
 
+def _switch(feature: str):
+    """Describer for commands whose S1/S0 turns something on/off."""
+    def describe(line, before, after) -> str:
+        value = line.number("S")
+        if value is None:
+            return f"Change the {feature} setting."
+        return f"Turn {'on' if value else 'off'} {feature}."
+    return describe
+
+
 # ---------------------------------------------------------------- reference
 
 _MOVE_PARAMS = {
@@ -372,7 +383,7 @@ COMMANDS: dict[str, CommandInfo] = {
     "G29.2": CommandInfo(
         "Bed leveling on/off (Bambu)",
         "Turn bed-leveling compensation on (S1) or off (S0).", "",
-        {"S": "1 = use the bed map, 0 = ignore it"}, C),
+        {"S": "1 = use the bed map, 0 = ignore it"}, C, _switch("bed-leveling compensation (following the bed map)")),
     "G380": CommandInfo(
         "Probe move (Bambu)", "Move until something is touched, then stop.",
         "Bambu's own comment says this is the same as G38 (a probing move). It's used "
@@ -499,7 +510,7 @@ COMMANDS: dict[str, CommandInfo] = {
                         describe=_describe_wait),
     "M412": CommandInfo("Filament runout sensor", "Turn filament runout detection on (S1) or off (S0).",
                         "When on, the printer pauses if the filament runs out.",
-                        {"S": "1 = on, 0 = off"}),
+                        {"S": "1 = on, 0 = off"}, describe=_switch("filament runout detection")),
     "M500": CommandInfo("Save settings", "Save calibration/settings to the printer's memory.",
                         "Here it stores the fresh bed-leveling map."),
     "M620": CommandInfo(
@@ -561,12 +572,12 @@ COMMANDS: dict[str, CommandInfo] = {
     "M975": CommandInfo(
         "Vibration suppression (Bambu)", "Turn vibration compensation on (S1) or off (S0).",
         "Also called input shaping: the printer shapes its moves to cancel out "
-        "its own vibrations, giving cleaner walls at high speed.", {"S": "1 = on, 0 = off"}, C),
+        "its own vibrations, giving cleaner walls at high speed.", {"S": "1 = on, 0 = off"}, C, _switch("vibration suppression (input shaping)")),
     "M971": CommandInfo("Camera capture (Bambu)", "Trigger the printer camera (timelapse/AI checks).",
                         "Not publicly documented; appears at every layer change.", {}, C),
     "M981": CommandInfo("Spaghetti detection (Bambu)",
                         "Turn the camera's failed-print (“spaghetti”) detection on or off.",
-                        "", {"S": "1 = on, 0 = off", "P": "Setting (believed sensitivity)"}, C),
+                        "", {"S": "1 = on, 0 = off", "P": "Setting (believed sensitivity)"}, C, _switch("spaghetti (failed print) detection")),
     "M991": CommandInfo("Layer change notice (Bambu)",
                         "Tell the printer a new layer started (used for timelapse).", "",
                         {"S": "Mode", "P": "Layer number (−1 = end)"}, C),
@@ -579,7 +590,7 @@ COMMANDS: dict[str, CommandInfo] = {
     "M1003": CommandInfo("Power-loss recovery (Bambu)",
                          "Turn power-loss recovery on (S1) or off (S0).",
                          "When on, the printer can resume after a power cut.",
-                         {"S": "1 = on, 0 = off"}, C),
+                         {"S": "1 = on, 0 = off"}, C, _switch("power-loss recovery")),
     "M1004": CommandInfo("External camera shutter (Bambu)",
                          "Trigger an external camera shutter (Bambu's comment).", "", {}, C),
     "M1006": CommandInfo("Buzzer / music (Bambu)", "Play notes on the printer's speaker (A1 series).",

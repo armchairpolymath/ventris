@@ -53,6 +53,13 @@ class ExplainTest(unittest.TestCase):
         self.assertIn("slot 2", ex("T1").sentence)
         self.assertIn("unload", ex("T255").sentence.lower())
 
+    def test_switch_commands(self):
+        self.assertEqual(ex("M975 S1").sentence, "Turn on vibration suppression (input shaping).")
+        self.assertIn("off", ex("M412 S0").sentence)
+
+    def test_z_only_move(self):
+        self.assertTrue(ex("G1 Z1").sentence.startswith("Change the nozzle height to Z 1 mm"))
+
     def test_unknown_command(self):
         e = ex("M9999 S1")
         self.assertEqual(e.kind, "unknown")
