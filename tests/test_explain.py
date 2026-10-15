@@ -60,6 +60,42 @@ class ExplainTest(unittest.TestCase):
     def test_z_only_move(self):
         self.assertTrue(ex("G1 Z1").sentence.startswith("Change the nozzle height to Z 1 mm"))
 
+    def test_a1_codes_are_known(self):
+        for line in ["G392 S0", "M9833.2", "G39 S1", "G39.3 S1", "G39.4", "G29.4",
+                     "G2814 Z0.32", "M211 X0 Y0 Z0", "M900 S", "M983 F6.8 A0.3 H0.6",
+                     "M984 A0.1 E1 S1 F6.8 H0.6", "M970.2 Q1 K1 W58 Z0.1", "M630 S0 P0",
+                     "M982.2 S1", "M620.3 W1", "M1007 S1"]:
+            self.assertEqual(ex(line).kind, "command", line)
+
+    def test_clog_detection_switch(self):
+        self.assertEqual(ex("G392 S0").sentence, "Turn off nozzle clog detection.")
+        self.assertEqual(ex("G392 S1").sentence, "Turn on nozzle clog detection.")
+
+    def test_unknown_purpose_is_said_plainly(self):
+        self.assertIn("isn't public", ex("M9833.2").sentence)
+
+    def test_m211_soft_endstops(self):
+        self.assertIn("travel limits", ex("M211 X0 Y0 Z0").sentence)
+        self.assertIn("M211 R", ex("M211 S").sentence)
+
+    def test_m900_pressure_advance(self):
+        self.assertIn("0.02", ex("M900 K0.02").sentence)
+
+    def test_conditional_accepts_s(self):
+        self.assertIn("yes", ex("M622 S1").sentence)
+
+    def test_m109_with_h(self):
+        self.assertIn("H140", ex("M109 S25 H140").sentence)
+
+    def test_new_flags_and_claims(self):
+        self.assertIn("clump", ex("M1002 judge_flag g39_3rd_layer_detect_flag").sentence)
+        self.assertIn("calibration succeeded",
+                      ex("M1002 judge_last_extrude_cali_success").sentence)
+        self.assertIn("“Calibrating extrusion”", ex("M1002 gcode_claim_action : 8").sentence)
+
+    def test_laser_lights(self):
+        self.assertIn("laser", ex("M960 S1 P0").sentence)
+
     def test_unknown_command(self):
         e = ex("M9999 S1")
         self.assertEqual(e.kind, "unknown")

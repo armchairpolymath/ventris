@@ -89,6 +89,13 @@ def _describe_temp(heater: str, wait: bool):
             return f"Change the {heater} temperature (no target given)."
         if target == 0:
             return f"Turn the {heater} heater off."
+        if wait and line.has("H"):
+            limit = line.params["H"]
+            return (f"Bambu variant: set the {heater} target to {num(target)} °C and wait, "
+                    f"with H{limit} as a temperature limit. Bambu doesn't document H; it "
+                    f"is believed to let the wait finish once the {heater} is within the "
+                    f"{num(target)}–{limit} °C range (e.g. “cool to at most {limit} °C” "
+                    "before the nozzle touches the bed).")
         if wait:
             return (f"Set the {heater} to {num(target)} °C and wait until it gets there. "
                     "The printer pauses here until the temperature is reached.")
@@ -180,13 +187,17 @@ def _describe_percent(what: str):
     return describe
 
 
-def _describe_soft_endstops(line: ParsedLine) -> str | None:
-    # Bambu reuses M221 for software travel limits ("soft endstops").
+def _describe_soft_endstops(line: ParsedLine, before=None, after=None) -> str | None:
+    # P1/X1 firmware reuses M221 for software travel limits ("soft endstops");
+    # A1 firmware uses the Marlin-standard M211 the same way.
+    code = line.code
     if line.has("S") and line.params["S"] == "":
         return ("Save the current soft-endstop settings (Bambu's “push”), so they can "
-                "be restored later with M221 R.")
+                f"be restored later with {code} R.")
     if line.has("R"):
-        return "Restore the soft-endstop settings saved earlier with M221 S (“pop”)."
+        return f"Restore the soft-endstop settings saved earlier with {code} S (“pop”)."
+    if code == "M211" and line.has("S"):
+        return f"Turn {'on' if line.number('S') else 'off'} the software travel limits."
     axes = [a for a in "XYZ" if line.has(a)]
     if axes:
         state = "off" if all(line.number(a) == 0 for a in axes) else "on"
@@ -206,6 +217,9 @@ def _describe_motor_current(line, before, after) -> str:
         return ("Set motor current (power) for " + ", ".join(axes) +
                 ". Lower current makes a motor gentler — Bambu does this so a crash "
                 "into the bed does less damage.")
+    if line.has("D"):
+        return ("Bambu variant M17 D. Not documented; it follows a step where motor "
+                "current was lowered, so it is believed to restore the default currents.")
     return "Turn the stepper motors on (they hold their position firmly)."
 
 
@@ -217,6 +231,10 @@ _CLAIM_ACTIONS = {
     "0": "clear the status message (normal printing)",
     "1": "“Auto bed leveling”",
     "2": "“Heatbed preheating”",
+    "3": "“Checking the motion system” (vibration test)",
+    "4": "“Changing filament”",
+    "8": "“Calibrating extrusion”",
+    "24": "“Preparing temperature and material”",
     "13": "“Homing toolhead”",
     "14": "“Cleaning nozzle tip”",
     "54": "“Heatbed preheating”",
@@ -226,6 +244,12 @@ _FLAGS = {
     "g29_before_print_flag": "whether “Bed leveling” was ticked when the print was sent",
     "timelapse_record_flag": "whether timelapse recording is turned on",
     "extrude_cali_flag": "whether flow calibration was ticked when the print was sent",
+    "filament_need_cali_flag": "whether this filament still needs calibrating",
+    "build_plate_detect_flag": "whether build-plate detection is turned on",
+    "g39_detection_flag": "whether nozzle clump detection is turned on",
+    "g39_3rd_layer_detect_flag": "whether the nozzle clump check on layer 3 is turned on",
+    "g39_mass_exceed_flag": "whether the printer estimates too much plastic is stuck "
+                            "to the nozzle (see M1007)",
 }
 
 
@@ -249,6 +273,12 @@ def _describe_m1002(line, before, after) -> str:
     if key.startswith("set_gcode_claim_speed_level"):
         return (f"Set Bambu's internal speed level to {value}. The exact meaning isn't "
                 "public; it appears to tie into the speed mode shown on the printer.")
+    if key.startswith("judge_last_extrude_cali_success"):
+        return ("Check whether the last extrusion calibration succeeded. The M622 "
+                "block that follows runs based on the answer — here, J0 repeats the "
+                "calibration if it failed.")
+    if key.startswith("set_flag"):
+        return f"Set the printer flag {value or key.split(None, 1)[-1]}."
     return "A Bambu control command (" + args + ")."
 
 
@@ -267,7 +297,7 @@ def _describe_tool(line, before, after) -> str:
 
 
 def _describe_conditional(line, before, after) -> str:
-    j = line.params.get("J", "")
+    j = line.params.get("J", line.params.get("S", ""))  # A1 firmware writes S
     want = {"1": "yes (the flag is on)", "0": "no (the flag is off)"}.get(j, j)
     return (f"Start a conditional block: the lines up to the next M623 only run if the "
             f"last M1002 check answered {want}. Otherwise the printer skips them.")
@@ -290,10 +320,33 @@ def _describe_ams_start(line, before, after) -> str:
 
 def _describe_lamp(line, before, after) -> str:
     state = "on" if line.number("P") == 1 else "off"
-    lights = {"1": "the toolhead light", "2": "the nozzle camera light",
-              "4": "the chamber light", "5": "the logo light"}
+    lights = {"1": "laser 1 (Bambu's comment: “turn off laser”)",
+              "2": "laser 2 (Bambu's comment: “turn off laser”)",
+              "4": "the nozzle light", "5": "the logo light"}
     which = lights.get(line.params.get("S", ""), f"light #{line.params.get('S', '?')}")
     return f"Turn {state} {which}."
+
+
+def _describe_pressure_advance(line, before, after) -> str:
+    if line.has("K") and line.params["K"]:
+        return (f"Set pressure advance to K = {line.params['K']}. Higher K pushes "
+                "filament slightly earlier when speeding up and eases off sooner when "
+                "slowing down, so corners and line ends come out even.")
+    if line.has("S") and not line.params["S"]:
+        return ("Bambu variant M900 S: believed to save the current pressure-advance "
+                "settings before a calibration test (M900 R restores them).")
+    if line.has("R") and not line.params["R"]:
+        return "Bambu variant M900 R: believed to restore the pressure-advance settings saved by M900 S."
+    if line.has("C") and not line.params["C"]:
+        return ("Bambu variant M900 C: undocumented; used just before the extrusion "
+                "calibration test line, believed to clear the current compensation.")
+    return "Change pressure-advance (linear advance) settings."
+
+
+def _unknown_purpose(context: str):
+    def describe(line, before, after) -> str:
+        return f"Bambu command whose exact purpose isn't public. {context}"
+    return describe
 
 
 def _switch(feature: str):
@@ -433,7 +486,8 @@ COMMANDS: dict[str, CommandInfo] = {
                         describe=_describe_temp("nozzle", wait=False)),
     "M109": CommandInfo("Set nozzle temperature and wait",
                         "Heat the nozzle and wait until it reaches the target.", "",
-                        {"S": "Target temperature in °C"},
+                        {"S": "Target temperature in °C",
+                         "H": "Bambu: temperature limit (believed; undocumented)"},
                         describe=_describe_temp("nozzle", wait=True)),
     "M140": CommandInfo("Set bed temperature", "Start heating the bed; don't wait.",
                         "A warm bed helps the first layer stick.",
@@ -535,7 +589,8 @@ COMMANDS: dict[str, CommandInfo] = {
                         "Only run the following lines if the last M1002 check matched.",
                         "Lets one file adapt to the options you pick when starting the "
                         "print (bed leveling, timelapse, …). The block ends at M623.",
-                        {"J": "Required answer: 1 = yes, 0 = no"}, C, _describe_conditional),
+                        {"J": "Required answer: 1 = yes, 0 = no",
+         "S": "Same as J (A1 firmware)"}, C, _describe_conditional),
     "M622.1": CommandInfo("Conditional default (Bambu)",
                           "Default answer for the next check, for older firmware.",
                           "Bambu's comment: “for prev firmware, default turned on”.",
@@ -559,8 +614,9 @@ COMMANDS: dict[str, CommandInfo] = {
                         "Control the fan that cools the printer's electronics.",
                         "Bambu's comment: “turn on MC fan by default (P1S)”.",
                         {"A": "Automatic mode", "S": "Speed 0–255"}, C),
-    "M960": CommandInfo("Lights (Bambu)", "Turn one of the printer's lights on or off.", "",
-                        {"S": "Which light (5 = logo)", "P": "1 = on, 0 = off"}, C, _describe_lamp),
+    "M960": CommandInfo("Lights and lasers (Bambu)", "Turn one of the printer's lights or lasers on or off.", "",
+                        {"S": "Which light (1/2 = lasers, 4 = nozzle, 5 = logo)", "P": "1 = on, 0 = off"},
+        C, _describe_lamp),
     "M970.3": CommandInfo(
         "Vibration test (Bambu)", "Shake an axis to measure how the printer vibrates.",
         "Part of the “mech mode fast check”: the results let the printer cancel out "
@@ -593,6 +649,106 @@ COMMANDS: dict[str, CommandInfo] = {
                          {"S": "1 = on, 0 = off"}, C, _switch("power-loss recovery")),
     "M1004": CommandInfo("External camera shutter (Bambu)",
                          "Trigger an external camera shutter (Bambu's comment).", "", {}, C),
+    "G39": CommandInfo(
+        "Nozzle clump check (Bambu A1)",
+        "Check whether plastic has built up around the nozzle.",
+        "Runs inside the “enable nozzle clog detect at 3rd layer” block. The A1 uses "
+        "its nozzle sensor to detect a blob of plastic (“clump”) stuck to the nozzle, "
+        "which can wreck a print. Exact method isn't public.",
+        {"S": "Mode (S1 seen in Bambu Studio files)"}, C),
+    "G39.3": CommandInfo(
+        "Nozzle clump re-check (Bambu A1)",
+        "A follow-up nozzle clump check.",
+        "Runs only when the printer's mass estimate (M1007) says too much plastic "
+        "may be stuck to the nozzle (flag g39_mass_exceed_flag). Clog detection "
+        "(G392) is switched off around it.", {"S": "Mode"}, C),
+    "G39.4": CommandInfo(
+        "Build plate detection (Bambu)", "Check that a build plate is on the bed.",
+        "Runs only if build-plate detection is enabled (build_plate_detect_flag). "
+        "OpenBambuAPI: “fires a canned command to detect build plate”.", {}, C),
+    "G29.4": CommandInfo(
+        "Leveling-related (Bambu A1)", "Last command of the A1 start code; purpose isn't public.",
+        "It belongs to the G29 bed-leveling family and runs right after mass "
+        "estimation is turned on (M1007 S1), just before the model starts.", {}, C,
+        _unknown_purpose("It's the last line of the A1 start code and belongs to the "
+                         "G29 bed-leveling family.")),
+    "G392": CommandInfo(
+        "Nozzle clog detection (Bambu)", "Turn nozzle clog detection on (S1) or off (S0).",
+        "Bambu's comment: “turn off nozzle clog detect”. The printer watches for signs "
+        "that the nozzle is blocked. Bambu turns it off during startup and around "
+        "steps that would trigger it falsely.", {"S": "1 = on, 0 = off"}, C,
+        _switch("nozzle clog detection")),
+    "G2814": CommandInfo(
+        "Z calibration step (Bambu A1)", "Purpose isn't public.",
+        "Appears once, right after the nozzle is lowered to Z 0.3 at the front of the "
+        "bed and just before the extrusion calibration line. The Z value matches the "
+        "first-layer height, so it is believed to be a first-layer height check.",
+        {"Z": "Height in mm"}, C,
+        _unknown_purpose("It runs with the nozzle just above the bed before the "
+                         "calibration line; believed to be a first-layer height check.")),
+    "M211": CommandInfo(
+        "Soft endstops", "Turn the software travel limits on or off.",
+        "In Marlin, M211 S1/S0 turns “soft endstops” on/off — limits that stop the "
+        "printer moving past its edges. A1 firmware also uses X0 Y0 Z0 to turn them "
+        "off per axis, bare S to save the setting and R to restore it (Bambu's "
+        "comments: “push” and “pop”).",
+        {"S": "1/0 = on/off; no number = save setting", "R": "Restore saved setting",
+         "X": "X limit on/off", "Y": "Y limit on/off", "Z": "Z limit on/off"},
+        describe=_describe_soft_endstops),
+    "M900": CommandInfo(
+        "Pressure advance", "Tune how the extruder anticipates speed changes.",
+        "Pressure advance (Marlin calls it linear advance) compensates for pressure "
+        "building up in the nozzle. K is the strength. Bambu also uses bare S, C and "
+        "R around its calibration test; those aren't documented.",
+        {"K": "Pressure-advance factor", "L": "Bambu: unknown", "M": "Bambu: unknown",
+         "S": "Bambu: save (believed)", "C": "Bambu: clear (believed)",
+         "R": "Bambu: restore (believed)"}, describe=_describe_pressure_advance),
+    "M983": CommandInfo(
+        "Extrusion calibration (Bambu A1)", "Measure how the filament flows to tune pressure advance.",
+        "Bambu's comment: “cali dynamic extrusion compensation”. This is the automatic "
+        "flow-dynamics calibration you can tick when sending a print. The printer "
+        "extrudes and measures the result to choose a pressure-advance value.",
+        {"F": "Flow rate used for the test (from the outer-wall volumetric speed)",
+         "A": "Test parameter (believed acceleration/amplitude)",
+         "H": "Nozzle diameter (mm)"}, C),
+    "M984": CommandInfo(
+        "Extrusion calibration step 2 (Bambu A1)", "Second part of the extrusion calibration.",
+        "Runs after M983 in the block Bambu labels “draw extrinsic para cali paint”. "
+        "Exact parameters aren't public.",
+        {"A": "Test parameter", "E": "Test parameter", "S": "Enable",
+         "F": "Flow rate used for the test", "H": "Nozzle diameter (mm)"}, C),
+    "M970.2": CommandInfo(
+        "Vibration test (Bambu)", "Another vibration measurement in the motion-system check.",
+        "Runs next to M970.3 in the “mech mode fast check”. Results feed vibration "
+        "suppression (M975).", {"Q": "Axis (1 = X, 0 = Y, believed)"}, C),
+    "M982.2": CommandInfo(
+        "Motor noise reduction (Bambu)", "Turn motor cogging-noise reduction on (S1) or off (S0).",
+        "Bambu's comment: “turn on cog noise reduction”. Stepper motors hum because of "
+        "small bumps in their rotation (“cogging”); this tunes the motor drive to "
+        "quiet them.", {"S": "1 = on, 0 = off"}, C, _switch("motor noise reduction")),
+    "M620.3": CommandInfo(
+        "Filament tangle detection (Bambu)", "Turn filament tangle detection on (W1) or off.",
+        "Bambu's comment: “turn on filament tangle detection”. The printer pauses if the "
+        "filament snags on the spool instead of feeding freely.", {"W": "1 = on, 0 = off"}, C),
+    "M630": CommandInfo(
+        "Reset step (Bambu)", "Purpose isn't public.",
+        "Appears in the “reset machine status” part of the A1 start code. OpenBambuAPI "
+        "lists it as “unknown purpose”.", {"S": "Unknown", "P": "Unknown"}, C,
+        _unknown_purpose("It sits in the “reset machine status” part of the start code.")),
+    "M1007": CommandInfo(
+        "Mass estimation (Bambu)", "Turn nozzle mass estimation on (S1) or off (S0).",
+        "Bambu's comment: “turn on mass estimation”. The printer estimates whether "
+        "plastic is building up on the nozzle; if so, the clump re-check (G39.3) runs.",
+        {"S": "1 = on, 0 = off"}, C, _switch("nozzle mass estimation")),
+    "M9833.2": CommandInfo(
+        "Unknown startup command (Bambu A1)", "Purpose isn't public.",
+        "Appears near the very top of the A1 start code, right after clog detection "
+        "is turned off (G392 S0). Bambu doesn't document it and OpenBambuAPI lists "
+        "it as “unknown purpose”. One community start script labels it “set "
+        "noise/mech params”, but that is a guess.", {}, C,
+        _unknown_purpose("It runs right after clog detection is turned off at the very "
+                         "start of the print. One community script calls it “set "
+                         "noise/mech params” — unconfirmed.")),
     "M1006": CommandInfo("Buzzer / music (Bambu)", "Play notes on the printer's speaker (A1 series).",
                          "", {}, C),
     "T": CommandInfo(
@@ -711,6 +867,12 @@ COMMENT_MARKERS = [
     _m(r"^([GMT]\d+(?:\.\d+)?\b.*)$", "Disabled command",
        "This looks like a command (“{0}”) that has been switched off by putting a "
        "semicolon in front of it. The printer ignores it."),
+    _m(r"^enable nozzle clog detect at 3rd layer", "Layer-3 nozzle check",
+       "Bambu note: on layer 3 the printer checks whether plastic has built up on the "
+       "nozzle (G39), if that option is enabled."),
+    _m(r"^Slow Down (Start|End)", "Cooling slowdown",
+       "Slicer note: start/end of a section slowed down so the layer has enough time "
+       "to cool before the next one goes on top."),
     _m(r"^update layer progress", "Layer progress",
        "Slicer note: the next lines tell the printer's screen which layer it is on."),
     _m(r"^timelapse", "Timelapse",
