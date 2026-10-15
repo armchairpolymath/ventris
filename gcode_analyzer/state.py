@@ -190,6 +190,14 @@ class StateTracker:
             state.apply(parse_line(self.lines[index]))
         return before, state
 
+    def build_step(self, max_checkpoints: int = 20) -> bool:
+        """Add a few checkpoints ahead of time. Returns True while more remain.
+
+        The UI calls this when idle so jumping to the end of a big file is instant.
+        """
+        target = len(self._checkpoints) - 1 + max_checkpoints
+        return self._extend_to(target) < len(self.lines) // self.interval
+
     def _extend_to(self, k: int) -> int:
         while len(self._checkpoints) <= k:
             last = len(self._checkpoints) - 1

@@ -101,6 +101,15 @@ class StateTrackerTest(unittest.TestCase):
         tracker.update_lines(lines, first_changed=10)
         self.assertEqual(tracker.states_around(900)[1], run(*lines[:901]))
 
+    def test_build_step_finishes(self):
+        lines = self.make_lines(1000)
+        tracker = StateTracker(lines, interval=100)
+        steps = 0
+        while tracker.build_step(max_checkpoints=3):
+            steps += 1
+            self.assertLess(steps, 100)
+        self.assertEqual(tracker.states_around(999)[1], run(*lines[:1000]))
+
     def test_first_line_before_state_is_default(self):
         tracker = StateTracker(["G1 X5"])
         before, after = tracker.states_around(0)
