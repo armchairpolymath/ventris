@@ -12,7 +12,7 @@ Comment=Explain G-code line by line
 Exec="$here/run.sh" %f
 Icon=document-properties-symbolic
 Terminal=false
-Categories=Development;Graphics;
+Categories=Development;
 MimeType=text/x-gcode;
 DESKTOP
 update-desktop-database "$(dirname "$dest")" 2>/dev/null || true
