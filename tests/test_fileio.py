@@ -24,13 +24,21 @@ class FileIOTest(unittest.TestCase):
             z.writestr("Metadata/plate_1.gcode.md5", hashlib.md5(gcode.encode()).hexdigest())
         return path
 
-    def test_plain_round_trip(self):
-        path = self.tmp / "a.gcode"
-        path.write_text("G28\nG1 X5\n")
+    def test_crlf_file_keeps_its_line_endings(self):
+        path = self.tmp / "win.gcode"
+        path.write_bytes(b"G28\r\nG1 X5\r\n")
         doc = load(path)
         self.assertEqual(doc.text, "G28\nG1 X5\n")
         save(doc, "G28\nG1 X6\n", path)
-        self.assertEqual(path.read_text(), "G28\nG1 X6\n")
+        self.assertEqual(path.read_bytes(), b"G28\r\nG1 X6\r\n")
+
+    def test_plain_round_trip(self):
+        path = self.tmp / "a.gcode"
+        path.write_bytes(b"G28\nG1 X5\n")
+        doc = load(path)
+        self.assertEqual(doc.text, "G28\nG1 X5\n")
+        save(doc, "G28\nG1 X6\n", path)
+        self.assertEqual(path.read_bytes(), b"G28\nG1 X6\n")
 
     def test_3mf_load(self):
         doc = load(self.make_3mf("G1 X1\n"))

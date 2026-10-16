@@ -211,7 +211,7 @@ class MainWindow(QMainWindow):
             return False
         if self.document.is_bgcode or (self.document.is_3mf and not fileio.is_3mf(path)):
             # keep editing the new plain-text copy from now on
-            self.document = fileio.Document(path, "", None)
+            self.document = fileio.Document(path, "", None, newline=self.document.newline)
         else:
             self.document.path = path
         self.editor.document().setModified(False)
