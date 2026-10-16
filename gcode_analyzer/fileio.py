@@ -1,4 +1,4 @@
-"""Open and save plain .gcode files and Bambu .gcode.3mf archives."""
+"""Open and save plain .gcode, Bambu .gcode.3mf archives and Prusa .bgcode files."""
 
 from __future__ import annotations
 
@@ -9,6 +9,8 @@ import tempfile
 import zipfile
 from dataclasses import dataclass
 from pathlib import Path
+
+from . import bgcode
 
 _PLATE_GCODE = re.compile(r"^Metadata/plate_(\d+)\.gcode$")
 
@@ -22,10 +24,15 @@ class Document:
     path: Path
     text: str
     inner_name: str | None = None  # G-code entry inside a .3mf, if any
+    binary: bool = False  # opened from Prusa binary G-code
 
     @property
     def is_3mf(self) -> bool:
         return self.inner_name is not None
+
+    @property
+    def is_bgcode(self) -> bool:
+        return self.binary
 
 
 def is_3mf(path: Path) -> bool:
@@ -35,7 +42,13 @@ def is_3mf(path: Path) -> bool:
 def load(path: Path) -> Document:
     path = Path(path)
     if not is_3mf(path):
-        return Document(path, _decode(path.read_bytes()))
+        raw = path.read_bytes()
+        if bgcode.is_bgcode(raw):
+            try:
+                return Document(path, bgcode.decode(raw).to_text(), binary=True)
+            except bgcode.BgcodeError as exc:
+                raise FileFormatError(str(exc)) from exc
+        return Document(path, _decode(raw))
     try:
         with zipfile.ZipFile(path) as z:
             plates = sorted((int(m.group(1)), n) for n in z.namelist()
@@ -54,6 +67,10 @@ def save(doc: Document, text: str, path: Path) -> None:
     """Save `text` to `path`. A .3mf target gets its plate G-code and md5 replaced."""
     path = Path(path)
     data = text.encode("utf-8")
+    if doc.is_bgcode and (path.suffix.lower() == ".bgcode" or path == doc.path):
+        raise FileFormatError(
+            "Saving back to binary G-code (.bgcode) isn't supported. Save as a .gcode "
+            "file instead — Prusa printers print plain .gcode files too.")
     if doc.is_3mf and is_3mf(path):
         _write_3mf(doc.path, doc.inner_name, data, path)
     elif is_3mf(path):

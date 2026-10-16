@@ -14,126 +14,53 @@ import re
 from ..parser import ParsedLine
 from ..reference import CommandInfo, CommentMarker, Profile, num
 from ..state import MachineState
-
-C = "community"
+from . import common
+from .common import (COMMUNITY as C, describe_arc as _describe_arc,
+                     describe_dwell as _describe_dwell, describe_move as _describe_move,
+                     describe_progress as _describe_progress,
+                     describe_set_position as _describe_set_position,
+                     describe_wait as _describe_wait, switch as _switch)
 
 # ---------------------------------------------------------------- describers
 
 
-def _speed(feed: float | None) -> str:
-    return f"{num(feed / 60, digits=1)} mm/s" if feed else ""
 
 
-def _describe_move(line: ParsedLine, before: MachineState, after: MachineState) -> str:
-    relative = before.positioning == "relative"
-    axes = [(a, line.number(a)) for a in "XYZ" if line.number(a) is not None]
-    e = line.number("E")
-    if e is not None and before.extrusion == "absolute" and not relative:
-        e = (after.e - before.e) if before.e is not None else e
-    feed = line.number("F")
-
-    if not axes and e is None:
-        if feed is not None:
-            return (f"Set the speed for the next moves to {_speed(feed)} "
-                    f"({num(feed)} mm/min). Nothing moves on this line.")
-        return "A move command with nothing to move. The printer does nothing."
-
-    if not axes:
-        if e > 0:
-            text = (f"Push {num(e)} mm of filament out of the nozzle without moving. "
-                    "This refills the nozzle after a retraction (or primes it).")
-        else:
-            text = (f"Retract: the printer pulls the filament back {num(-e)} mm so "
-                    "molten plastic doesn't ooze or string while the nozzle travels.")
-        return text + (f" Speed {_speed(feed)}." if feed else "")
-
-    if relative:
-        where = "Move the nozzle by " + ", ".join(
-            f"{a} {'+' if v >= 0 else ''}{num(v)} mm" for a, v in axes)
-    else:
-        where = "Move the nozzle to " + ", ".join(f"{a} {num(v)} mm" for a, v in axes)
-    if axes == [("Z", line.number("Z"))]:
-        where = where.replace("Move the nozzle to", "Change the nozzle height to", 1)
-        where = where.replace("Move the nozzle by", "Change the nozzle height by", 1)
-
-    if e is None:
-        what = " without printing (a “travel” move)"
-    elif e > 0:
-        what = f" while pushing out {num(e)} mm of filament — this is the actual printing"
-    else:
-        what = (f" while pulling the filament back {num(-e)} mm (a “wipe”, which "
-                "cleans the nozzle on the part)")
-    speed = f" at {_speed(feed)}" if feed else ""
-    return f"{where}{what}{speed}."
 
 
-def _describe_arc(line: ParsedLine, before: MachineState, after: MachineState) -> str:
-    direction = "clockwise" if line.code == "G2" else "counter-clockwise"
-    end = ", ".join(f"{a} {num(line.number(a))}" for a in "XYZ" if line.has(a))
-    center = ", ".join(f"{a} {num(line.number(a))}" for a in "IJ" if line.has(a))
-    if end:
-        text = f"Move along a {direction} curve ending at {end} mm"
-    else:
-        text = f"Move in a full {direction} circle back to where the nozzle started"
-    if center:
-        text += f", turning around a center point offset by {center} mm from the start"
-    if line.has("E"):
-        text += f", extruding {num(line.number('E'))} mm of filament"
-    return text + "."
+
+
+
+
+_FANS = {1: "part-cooling fan (on the toolhead)", 2: "auxiliary (side) fan",
+         3: "chamber (exhaust) fan"}
+_describe_fan = common.describe_fan(_FANS)
 
 
 def _describe_temp(heater: str, wait: bool):
+    base = common.describe_temp(heater, wait)
+
     def describe(line: ParsedLine, before: MachineState, after: MachineState) -> str:
         target = line.number("S")
-        if target is None:
-            return f"Change the {heater} temperature (no target given)."
-        if target == 0:
-            return f"Turn the {heater} heater off."
-        if wait and line.has("H"):
+        if wait and target and line.has("H"):
             limit = line.params["H"]
             return (f"Bambu variant: set the {heater} target to {num(target)} °C and wait, "
                     f"with H{limit} as a temperature limit. Bambu doesn't document H; it "
                     f"is believed to let the wait finish once the {heater} is within the "
                     f"{num(target)}–{limit} °C range (e.g. “cool to at most {limit} °C” "
                     "before the nozzle touches the bed).")
-        if wait:
-            return (f"Set the {heater} to {num(target)} °C and wait until it gets there. "
-                    "The printer pauses here until the temperature is reached.")
-        return (f"Set the {heater} to {num(target)} °C and carry on right away — "
-                "it heats in the background.")
+        return base(line, before, after)
     return describe
 
 
-_FANS = {1: "part-cooling fan (on the toolhead)", 2: "auxiliary (side) fan",
-         3: "chamber (exhaust) fan"}
+def _unknown_purpose(context: str):
+    return common.unknown_purpose("Bambu", context)
 
 
-def _describe_fan(line: ParsedLine, before: MachineState, after: MachineState) -> str:
-    fan = _FANS.get(int(line.number("P") or 1), f"fan #{num(line.number('P'))}")
-    if line.code == "M107":
-        return f"Turn off the {fan}."
-    speed = line.number("S")
-    speed = 255 if speed is None else speed
-    pct = round(speed / 255 * 100)
-    return f"Turn off the {fan}." if pct == 0 else f"Set the {fan} to {pct}% speed."
 
 
-def _describe_dwell(line: ParsedLine, before: MachineState, after: MachineState) -> str:
-    if line.has("S"):
-        return f"Pause for {num(line.number('S'))} seconds."
-    if line.has("P"):
-        return f"Pause for {num(line.number('P'))} milliseconds."
-    return "Pause briefly."
 
 
-def _describe_wait(line: ParsedLine, before: MachineState, after: MachineState) -> str:
-    text = ("Wait until every move already queued has finished before reading the "
-            "next line.")
-    if line.has("S"):
-        text += f" Then wait another {num(line.number('S'))} seconds."
-    elif line.has("P"):
-        text += f" Then wait another {num(line.number('P'))} ms."
-    return text
 
 
 def _describe_home(line: ParsedLine, before: MachineState, after: MachineState) -> str:
@@ -148,26 +75,8 @@ def _describe_home(line: ParsedLine, before: MachineState, after: MachineState) 
     return text
 
 
-def _describe_set_position(line, before, after) -> str:
-    parts = [f"{a} = {num(line.number(a))}" for a in "XYZE" if line.number(a) is not None]
-    if parts == ["E = 0"]:
-        return ("Reset the filament counter to zero. Nothing moves; the printer just "
-                "starts counting extrusion from 0 again.")
-    return ("Tell the printer its current position is " + ", ".join(parts) +
-            ". Nothing moves — it just relabels where it is.")
 
 
-def _describe_progress(line, before, after) -> str:
-    parts = []
-    if line.has("P"):
-        parts.append(f"the print is {num(line.number('P'))}% done")
-    if line.has("R"):
-        parts.append(f"about {num(line.number('R'))} minutes remain")
-    if line.has("L"):
-        parts.append(f"it is now on layer {num(line.number('L'))}")
-    if not parts:
-        return "Update the progress shown on the printer's screen."
-    return "Update the printer's screen: " + ", ".join(parts) + "."
 
 
 def _describe_percent(what: str):
@@ -283,6 +192,8 @@ def _describe_m1002(line, before, after) -> str:
 
 
 def _describe_tool(line, before, after) -> str:
+    if not line.code[1:].isdigit():
+        return "Tool change command without a tool number."
     n = int(line.code[1:])
     if n < 255:
         return (f"Switch to filament T{n} — AMS slot {n + 1} (if the slicer mapping "
@@ -343,20 +254,8 @@ def _describe_pressure_advance(line, before, after) -> str:
     return "Change pressure-advance (linear advance) settings."
 
 
-def _unknown_purpose(context: str):
-    def describe(line, before, after) -> str:
-        return f"Bambu command whose exact purpose isn't public. {context}"
-    return describe
 
 
-def _switch(feature: str):
-    """Describer for commands whose S1/S0 turns something on/off."""
-    def describe(line, before, after) -> str:
-        value = line.number("S")
-        if value is None:
-            return f"Change the {feature} setting."
-        return f"Turn {'on' if value else 'off'} {feature}."
-    return describe
 
 
 # ---------------------------------------------------------------- reference
@@ -369,7 +268,7 @@ _MOVE_PARAMS = {
     "F": "Speed in mm per minute (divide by 60 for mm/s). Stays in effect for later moves.",
 }
 
-COMMANDS: dict[str, CommandInfo] = {
+_BAMBU_COMMANDS: dict[str, CommandInfo] = {
     "G0": CommandInfo(
         "Move", "Move the nozzle in a straight line.",
         "G0 is the “rapid move”. On Bambu printers it behaves exactly like G1. "
@@ -758,6 +657,16 @@ COMMANDS: dict[str, CommandInfo] = {
         {}, C, _describe_tool),
 }
 
+COMMANDS: dict[str, CommandInfo] = {
+    **common.marlin_commands(
+        "Bambu Studio", _FANS,
+        "Speed S runs from 0 (off) to 255 (full). Bambu has up to three fans: P1 "
+        "part-cooling on the toolhead (the default), P2 the big auxiliary side fan, "
+        "P3 the chamber exhaust fan.",
+        "On P1/X1 printers the bed moves down; on A1 the gantry moves up."),
+    **_BAMBU_COMMANDS,
+}
+
 # ---------------------------------------------------------------- comments
 
 _FEATURES = {
@@ -901,4 +810,5 @@ PROFILE = Profile(
     commands=COMMANDS,
     comment_markers=COMMENT_MARKERS,
     detect=_detect,
+    vendor="Bambu",
 )

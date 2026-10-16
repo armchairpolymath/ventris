@@ -61,6 +61,26 @@ class FileIOTest(unittest.TestCase):
         with self.assertRaises(FileFormatError):
             load(path)
 
+    def test_bgcode_load_and_save_as_gcode(self):
+        src = Path(__file__).parent / "fixtures" / "prusa_mk4s_cube.bgcode"
+        path = self.tmp / "cube.bgcode"
+        path.write_bytes(src.read_bytes())
+        doc = load(path)
+        self.assertTrue(doc.is_bgcode)
+        self.assertIn("M862.3", doc.text)
+        with self.assertRaises(FileFormatError):
+            save(doc, doc.text, path)
+        self.assertEqual(path.read_bytes(), src.read_bytes())  # original untouched
+        out = self.tmp / "cube.gcode"
+        save(doc, "G1 X1\n", out)
+        self.assertEqual(out.read_text(), "G1 X1\n")
+
+    def test_bgcode_detected_by_content(self):
+        src = Path(__file__).parent / "fixtures" / "prusa_mk4s_cube.bgcode"
+        path = self.tmp / "renamed.gcode"
+        path.write_bytes(src.read_bytes())
+        self.assertTrue(load(path).is_bgcode)
+
     def test_non_utf8_is_tolerated(self):
         path = self.tmp / "b.gcode"
         path.write_bytes(b"; caf\xe9\nG1 X1\n")

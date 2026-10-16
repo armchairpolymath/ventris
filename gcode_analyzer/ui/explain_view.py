@@ -79,7 +79,7 @@ STATE_ROWS = [
         ("Printing", ["feature"], lambda s: s.feature or "—",
          "Which part of the model is printing — wall, infill, support…"),
         ("Filament", ["filament"],
-         lambda s: "—" if s.filament is None else f"T{s.filament} (AMS slot {s.filament + 1})",
+         lambda s: "—" if s.filament is None else f"T{s.filament} (slot {s.filament + 1})",
          "Which filament is loaded (T command)."),
         ("Progress", ["progress", "remaining_min"],
          lambda s: "—" if s.progress is None else
@@ -177,8 +177,10 @@ class ExplainView(Gtk.ScrolledWindow):
         self.raw_label.set_label(raw.strip() or "(empty line)")
         self.title.set_label(exp.title)
 
+        vendor = exp.vendor or "Machine"
         pill = {"documented": ("Standard G-code", "pill-standard"),
-                "community": ("Bambu-specific · community knowledge", "pill-community")}
+                "vendor": (f"{vendor}-specific · documented by {vendor}", "pill-standard"),
+                "community": (f"{vendor}-specific · community knowledge", "pill-community")}
         kind_pill = {"comment": ("Note — not a command", "pill-note"),
                      "blank": ("Not a command", "pill-note"),
                      "unknown": ("Unknown", "pill-unknown")}
@@ -186,10 +188,14 @@ class ExplainView(Gtk.ScrolledWindow):
         self.source_pill.set_label(text)
         self.source_pill.set_css_classes(["pill", css])
         self.source_pill.set_visible(bool(text))
-        self.source_pill.set_tooltip_text(
-            "Bambu doesn't publish documentation for its own commands. This explanation "
-            "comes from Bambu's comments in its G-code and community research."
-            if exp.source == "community" else None)
+        tooltips = {
+            "community": f"{vendor} doesn't publish documentation for this command. The "
+                         f"explanation comes from {vendor}'s own comments in its G-code "
+                         "and community research.",
+            "vendor": f"Based on {vendor}'s published G-code documentation and the "
+                      f"comments {vendor} writes in its slicer profiles.",
+        }
+        self.source_pill.set_tooltip_text(tooltips.get(exp.source))
 
         self.sentence.set_label(exp.sentence)
         show_comment = exp.kind in ("command", "unknown") and bool(exp.comment)

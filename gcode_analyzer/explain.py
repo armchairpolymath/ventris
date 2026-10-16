@@ -29,6 +29,7 @@ class Explanation:
     source: str = ""
     params: list[ParamExplanation] = field(default_factory=list)
     comment: str | None = None  # a trailing comment written next to a command
+    vendor: str = ""  # maker the profile describes, for labels
 
 
 def explain(line: ParsedLine, before: MachineState, after: MachineState,
@@ -50,7 +51,12 @@ def explain(line: ParsedLine, before: MachineState, after: MachineState,
             params=[ParamExplanation(k, v, "") for k, v in line.params.items()],
             comment=line.comment)
 
-    sentence = info.describe(line, before, after) if info.describe else info.summary
+    sentence = info.summary
+    if info.describe:
+        try:
+            sentence = info.describe(line, before, after)
+        except (ValueError, TypeError, KeyError, IndexError):
+            pass  # malformed line (e.g. a missing number): fall back to the summary
     params = []
     for letter, value in line.params.items():
         if letter == "_args":
@@ -59,17 +65,17 @@ def explain(line: ParsedLine, before: MachineState, after: MachineState,
             params.append(ParamExplanation(letter, value, info.params.get(letter, "")))
     return Explanation("command", f"{line.code} — {info.name}", sentence,
                        summary=info.summary, details=info.details, source=info.source,
-                       params=params, comment=line.comment)
+                       params=params, comment=line.comment,
+                       vendor=profile.vendor or profile.name)
 
 
 def _explain_comment(comment: str, profile: Profile) -> Explanation:
     for marker in profile.comment_markers:
         match = marker.pattern.search(comment)
         if match:
-            return Explanation("comment", marker.title,
-                               marker.explanation.format(*match.groups(),
-                                                         **match.groupdict()),
-                               comment=comment)
+            groups = [g or "" for g in match.groups()]
+            return Explanation("comment", marker.title.format(*groups),
+                               marker.explanation.format(*groups), comment=comment)
     if m := _SETTING.match(comment):
         return Explanation(
             "comment", "Slicer setting",

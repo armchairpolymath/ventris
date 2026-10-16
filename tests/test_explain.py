@@ -96,6 +96,13 @@ class ExplainTest(unittest.TestCase):
     def test_laser_lights(self):
         self.assertIn("laser", ex("M960 S1 P0").sentence)
 
+    def test_malformed_lines_never_crash(self):
+        for profile in ("bambu", "prusa"):
+            for text in ["T", "M109 S", "G29 P", "M862.3", "M486", "M1002", "G1 X", "M106 P"]:
+                line = parse_line(text)
+                e = explain(line, MachineState(), MachineState(), get_profile(profile))
+                self.assertTrue(e.sentence, (profile, text))
+
     def test_unknown_command(self):
         e = ex("M9999 S1")
         self.assertEqual(e.kind, "unknown")
@@ -105,6 +112,9 @@ class ExplainTest(unittest.TestCase):
         e = ex("; FEATURE: Outer wall")
         self.assertEqual(e.kind, "comment")
         self.assertIn("outside", e.sentence.lower())
+
+    def test_comment_title_placeholders_filled(self):
+        self.assertEqual(ex("; layer num/total_layer_count: 3/120").title, "Layer 3 of 120")
 
     def test_config_comment(self):
         e = ex("; nozzle_diameter = 0.4")

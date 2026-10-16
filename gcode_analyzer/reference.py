@@ -42,6 +42,7 @@ class Profile:
     commands: dict[str, CommandInfo]
     comment_markers: list[CommentMarker]
     detect: Callable[[str], float]
+    vendor: str = ""  # short maker name for labels ("Bambu", "Prusa")
 
     def lookup(self, code: str) -> CommandInfo | None:
         if code in self.commands:

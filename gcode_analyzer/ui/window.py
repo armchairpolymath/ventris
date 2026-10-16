@@ -135,8 +135,8 @@ class MainWindow(Adw.ApplicationWindow):
     def _show_open_dialog(self) -> None:
         dialog = Gtk.FileDialog(title="Open G-code")
         filters = Gio.ListStore.new(Gtk.FileFilter)
-        gfilter = Gtk.FileFilter(name="G-code and Bambu 3MF")
-        for pattern in ("*.gcode", "*.gco", "*.g", "*.nc", "*.3mf"):
+        gfilter = Gtk.FileFilter(name="G-code, Bambu 3MF and Prusa binary G-code")
+        for pattern in ("*.gcode", "*.gco", "*.g", "*.nc", "*.3mf", "*.bgcode"):
             gfilter.add_pattern(pattern)
         filters.append(gfilter)
         all_files = Gtk.FileFilter(name="All files")
@@ -166,11 +166,12 @@ class MainWindow(Adw.ApplicationWindow):
         self._loading = False
         self.dirty = False
 
-        detected = detect_profile(doc.text[:20000])
-        self.profile_dropdown.set_selected(self.profiles.index(detected))
-        self.profile = detected
-
+        # The tracker must hold the new lines before the dropdown change below
+        # triggers a refresh of the explanation pane.
         self._reset_tracker()
+        detected = detect_profile(doc.text[:20000])
+        self.profile = detected
+        self.profile_dropdown.set_selected(self.profiles.index(detected))
         self.stack.set_visible_child_name("editor")
         self._update_title()
         self.buffer.place_cursor(self.buffer.get_start_iter())
@@ -178,15 +179,25 @@ class MainWindow(Adw.ApplicationWindow):
         self._refresh_explanation()
         if doc.is_3mf:
             self._toast(f"Opened {doc.inner_name} from the 3MF archive")
+        elif doc.is_bgcode:
+            self._toast("Opened Prusa binary G-code — edits are saved as plain .gcode")
 
     def save(self) -> None:
-        if self.document:
-            self._save_to(self.document.path)
+        if not self.document:
+            return
+        if self.document.is_bgcode:
+            self._toast("Binary G-code can't be written back — choose a .gcode file name")
+            self.save_as()
+            return
+        self._save_to(self.document.path)
 
     def save_as(self) -> None:
         if not self.document:
             return
-        dialog = Gtk.FileDialog(title="Save G-code As", initial_name=self.document.path.name)
+        name = self.document.path.name
+        if self.document.is_bgcode:
+            name = self.document.path.stem + ".gcode"
+        dialog = Gtk.FileDialog(title="Save G-code As", initial_name=name)
 
         def done(dlg, result):
             try:
@@ -202,7 +213,10 @@ class MainWindow(Adw.ApplicationWindow):
         except (OSError, fileio.FileFormatError) as exc:
             self._error("Couldn't save file", str(exc))
             return False
-        if fileio.is_3mf(path) or not self.document.is_3mf:
+        if self.document.is_bgcode:
+            # keep editing the new plain-text copy from now on
+            self.document = fileio.Document(path, "", None)
+        elif fileio.is_3mf(path) or not self.document.is_3mf:
             self.document.path = path
         else:
             # saved a 3mf's G-code out as plain .gcode: keep editing the new file
@@ -227,7 +241,9 @@ class MainWindow(Adw.ApplicationWindow):
         dialog.set_default_response("save")
 
         def responded(dlg, response):
-            if response == "save" and self._save_to(self.document.path):
+            if response == "save" and self.document.is_bgcode:
+                self.save_as()  # needs a new .gcode name; the user retries afterwards
+            elif response == "save" and self._save_to(self.document.path):
                 then()
             elif response == "discard":
                 self.dirty = False

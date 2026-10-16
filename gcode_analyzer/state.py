@@ -10,7 +10,8 @@ from .parser import ParsedLine, parse_line
 
 _LAYER_COMMENT = re.compile(r"layer num/total_layer_count:\s*(\d+)\s*/\s*(\d+)", re.I)
 _Z_HEIGHT = re.compile(r"Z_HEIGHT:\s*([-\d.]+)", re.I)
-_FEATURE = re.compile(r"FEATURE:\s*(.+)", re.I)
+_FEATURE = re.compile(r"(?:FEATURE|TYPE):\s*(.+)", re.I)  # Bambu Studio / PrusaSlicer
+_PRUSA_Z = re.compile(r"Z:([-\d.]+)$")
 
 
 @dataclass
@@ -58,6 +59,10 @@ class MachineState:
             self.z_height = float(m.group(1))
         elif m := _FEATURE.match(comment):
             self.feature = m.group(1).strip()
+        elif comment == "LAYER_CHANGE":  # PrusaSlicer doesn't number its layers
+            self.layer = (self.layer or 0) + 1
+        elif m := _PRUSA_Z.match(comment):
+            self.z_height = float(m.group(1))
 
 
 def _move(s: MachineState, line: ParsedLine) -> None:
@@ -98,9 +103,11 @@ def _setter(attr: str, value: str):
     return handler
 
 
-def _number_setter(attr: str, letter: str = "S", cast=float):
+def _number_setter(attr: str, letter: str = "S", cast=float, alt: str | None = None):
     def handler(s: MachineState, line: ParsedLine) -> None:
         value = line.number(letter)
+        if value is None and alt:
+            value = line.number(alt)
         if value is not None:
             setattr(s, attr, cast(value))
     return handler
@@ -148,9 +155,9 @@ _HANDLERS = {
     "G90": _setter("positioning", "absolute"), "G91": _setter("positioning", "relative"),
     "G92": _set_position,
     "M82": _setter("extrusion", "absolute"), "M83": _setter("extrusion", "relative"),
-    "M104": _number_setter("hotend_target"), "M109": _number_setter("hotend_target"),
-    "M140": _number_setter("bed_target"), "M190": _number_setter("bed_target"),
-    "M141": _number_setter("chamber_target"), "M191": _number_setter("chamber_target"),
+    "M104": _number_setter("hotend_target"), "M109": _number_setter("hotend_target", alt="R"),
+    "M140": _number_setter("bed_target"), "M190": _number_setter("bed_target", alt="R"),
+    "M141": _number_setter("chamber_target"), "M191": _number_setter("chamber_target", alt="R"),
     "M106": _fan_on, "M107": _fan_off,
     "M73": _progress,
     "M204": _number_setter("acceleration"),
@@ -181,6 +188,7 @@ class StateTracker:
 
     def states_around(self, index: int) -> tuple[MachineState, MachineState]:
         """Return (state before line `index` runs, state after it runs)."""
+        index = max(0, min(index, len(self.lines)))
         k = min(index // self.interval, self._extend_to(index // self.interval))
         state = copy.copy(self._checkpoints[k])
         for i in range(k * self.interval, index):

@@ -62,6 +62,17 @@ class MachineStateTest(unittest.TestCase):
         self.assertEqual(s.z_height, 0.6)
         self.assertEqual(s.feature, "Outer wall")
 
+    def test_prusaslicer_comments(self):
+        s = run(";LAYER_CHANGE", ";Z:0.2", ";HEIGHT:0.2", ";TYPE:External perimeter",
+                ";BEFORE_LAYER_CHANGE", ";AFTER_LAYER_CHANGE", ";LAYER_CHANGE", ";Z:0.4")
+        self.assertEqual(s.layer, 2)
+        self.assertEqual(s.z_height, 0.4)
+        self.assertEqual(s.feature, "External perimeter")
+
+    def test_wait_temperature_with_r(self):
+        s = run("M109 T0 R170", "M190 R60", "M191 S40")
+        self.assertEqual((s.hotend_target, s.bed_target, s.chamber_target), (170, 60, 40))
+
     def test_filament_slot(self):
         self.assertEqual(run("T2").filament, 2)
         self.assertEqual(run("T2", "T1000").filament, 2)
@@ -109,6 +120,11 @@ class StateTrackerTest(unittest.TestCase):
             steps += 1
             self.assertLess(steps, 100)
         self.assertEqual(tracker.states_around(999)[1], run(*lines[:1000]))
+
+    def test_index_past_end_is_clamped(self):
+        tracker = StateTracker(["G1 X5"])
+        before, after = tracker.states_around(40)
+        self.assertEqual(after.x, 5)
 
     def test_first_line_before_state_is_default(self):
         tracker = StateTracker(["G1 X5"])

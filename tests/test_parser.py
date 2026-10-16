@@ -59,6 +59,9 @@ class ParseLineTest(unittest.TestCase):
         self.assertEqual(p.code, "EXCLUDE_OBJECT_START")
         self.assertEqual(p.params, {"_args": "NAME=part_1"})
 
+    def test_hex_value(self):
+        self.assertEqual(parse_line("M708 A0x1e X12").params, {"A": "0x1e", "X": "12"})
+
     def test_number_value(self):
         p = parse_line("G1 X10.5 F")
         self.assertEqual(p.number("X"), 10.5)

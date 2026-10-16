@@ -9,7 +9,7 @@ _LINE_NUMBER = re.compile(r"^\s*[Nn]\d+\s*")
 _CHECKSUM = re.compile(r"\*\d+\s*$")
 _CODE = re.compile(r"^([GMTgmt])(\d+)(?:\.(\d+))?")
 _MACRO = re.compile(r"^([A-Za-z_][A-Za-z0-9_]*)")
-_PARAM = re.compile(r"\s*([A-Za-z])([-+]?(?:\d+\.?\d*|\.\d+))?")
+_PARAM = re.compile(r"\s*([A-Za-z])(0[xX][0-9A-Fa-f]+|[-+]?(?:\d+\.?\d*|\.\d+))?")
 
 
 @dataclass
