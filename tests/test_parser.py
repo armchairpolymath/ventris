@@ -1,6 +1,6 @@
 import unittest
 
-from gcode_analyzer.parser import parse_line
+from ventris.parser import parse_line
 
 
 class ParseLineTest(unittest.TestCase):

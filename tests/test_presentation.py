@@ -1,11 +1,11 @@
 import unittest
 
-from gcode_analyzer.dialects import get_profile
-from gcode_analyzer.explain import explain
-from gcode_analyzer.parser import parse_line
-from gcode_analyzer.presentation import (STATE_ROWS, details, file_note, param_rows,
+from ventris.dialects import get_profile
+from ventris.explain import explain
+from ventris.parser import parse_line
+from ventris.presentation import (STATE_ROWS, details, file_note, param_rows,
                                          source_badge)
-from gcode_analyzer.state import MachineState
+from ventris.state import MachineState
 
 
 def ex(text, profile="bambu"):

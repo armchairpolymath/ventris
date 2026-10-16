@@ -1,7 +1,7 @@
 import unittest
 
-from gcode_analyzer.parser import parse_line
-from gcode_analyzer.state import MachineState, StateTracker
+from ventris.parser import parse_line
+from ventris.state import MachineState, StateTracker
 
 
 def run(*lines):

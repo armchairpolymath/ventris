@@ -1,16 +1,17 @@
 #!/usr/bin/env bash
-# Add "G-code Analyzer" to the GNOME app menu (current user only).
+# Add Ventris to the Linux app menu for the current user, running from this source folder.
+# (The AppImage from the Releases page doesn't need this.)
 set -euo pipefail
 here="$(cd "$(dirname "$0")" && pwd)"
-dest="$HOME/.local/share/applications/com.patrickhoskins.GcodeAnalyzer.desktop"
+dest="$HOME/.local/share/applications/io.github.armchairpolymath.Ventris.desktop"
 mkdir -p "$(dirname "$dest")"
 cat > "$dest" <<DESKTOP
 [Desktop Entry]
 Type=Application
-Name=G-code Analyzer
-Comment=Explain G-code line by line
+Name=Ventris
+Comment=Explains G-code line by line
 Exec="$here/run.sh" %f
-Icon=document-properties-symbolic
+Icon=$here/ventris/assets/ventris.png
 Terminal=false
 Categories=Development;
 MimeType=text/x-gcode;

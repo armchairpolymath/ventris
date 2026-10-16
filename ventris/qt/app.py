@@ -2,14 +2,19 @@
 
 from __future__ import annotations
 
+import os
 import sys
 from pathlib import Path
 
-from PySide6.QtCore import QEvent, QObject, Qt
+from PySide6.QtCore import QEvent, QObject, Qt, QTimer
+from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import QApplication
 
+from .. import APP_ID, APP_NAME, __version__
 from . import theme
-from .window import APP_NAME, MainWindow
+from .window import MainWindow
+
+ICON = Path(__file__).resolve().parent.parent / "assets" / "ventris.png"
 
 
 class _FileOpenFilter(QObject):
@@ -31,8 +36,11 @@ def main(argv: list[str] | None = None) -> int:
     app = QApplication(argv)
     app.setApplicationName(APP_NAME)
     app.setApplicationDisplayName(APP_NAME)
+    app.setApplicationVersion(__version__)
     app.setOrganizationName("Patrick Hoskins")
-    app.setDesktopFileName("com.patrickhoskins.GcodeAnalyzer")
+    app.setDesktopFileName(APP_ID)
+    if ICON.exists():
+        app.setWindowIcon(QIcon(str(ICON)))
 
     theme.refresh()
     window = MainWindow()
@@ -51,4 +59,8 @@ def main(argv: list[str] | None = None) -> int:
     files = [a for a in app.arguments()[1:] if not a.startswith("-")]
     if files:
         window.open_path(Path(files[0]))
+    if os.environ.get("VENTRIS_SMOKE_TEST"):
+        # CI uses this to check that a packaged build starts: quit once the window is up.
+        QTimer.singleShot(1500, lambda: (print(f"{APP_NAME} {__version__} started OK"),
+                                         app.quit()))
     return app.exec()

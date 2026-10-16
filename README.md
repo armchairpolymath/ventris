@@ -1,100 +1,162 @@
-# G-code Analyzer
+# Ventris
 
-A desktop app (Qt / PySide6 — Linux, Windows, macOS) that explains G-code line by line.
-G-code on the left; on the right, a plain-English explanation of the line under
-the cursor and a snapshot of the machine's state at that point.
+**Explains G-code line by line.** Open a 3D-printer file and click any line: Ventris
+tells you, in plain English, what that line makes the printer do — and shows what the
+machine is doing at that moment (position, temperatures, fans, layer, what part of the
+model is printing).
 
-Supported printers (picked automatically from the file; change it in the header bar):
+![Ventris showing a Prusa MK4S file, with the selected line explained on the right](docs/screenshot.png)
 
-- **Bambu Lab** — X1 / P1 / A1 (Bambu Studio `.gcode` and `.gcode.3mf`)
-- **Prusa** — CORE One, MK4/MK4S, MK3.5, MINI, XL, MK3/MK3S (PrusaSlicer `.gcode`
-  and binary `.bgcode`)
+- **For beginners first.** Every command gets a one-sentence explanation of *this*
+  line ("Move the nozzle to X 154.8 mm, Y 107.3 mm while pushing out 0.023 mm of
+  filament — this is the actual printing"), what each part means, and more background
+  on demand.
+- **Honest about sources.** A badge on every command says where the explanation comes
+  from: standard G-code, the printer maker's documentation, or community research.
+  Anything uncertain says "believed" or "purpose isn't public".
+- **Machine state.** A panel simulates the printer as it runs the file, so lines that
+  depend on earlier ones (relative moves, temperatures, layers) make sense.
+- **Edit and save.** Fix or tweak lines in place.
+- **Big files are fine.** Opens 900,000-line prints in about two seconds.
 
-## Setup (once)
+## Supported printers
 
-Needs Python 3.10+.
+The right profile is picked automatically from the file; you can change it in the
+toolbar.
 
-```bash
-# Linux / macOS
-python3 -m venv .venv
-.venv/bin/python -m pip install -r requirements.txt
+| Printers | Files |
+|---|---|
+| **Bambu Lab** — X1, P1, A1 series | Bambu Studio `.gcode` and `.gcode.3mf` (plate sliced file) |
+| **Prusa** — CORE One, MK4/MK4S, MK3.5, MINI, XL, MK3/MK3S | PrusaSlicer `.gcode` and binary `.bgcode` |
 
-# Windows (PowerShell)
-py -3 -m venv .venv
-.venv\Scripts\python -m pip install -r requirements.txt
-```
+Saving a `.gcode.3mf` rewrites the plate's G-code and its checksum so the printer
+accepts it. Binary `.bgcode` files open as readable text and are saved as plain
+`.gcode` (Prusa printers print those too).
 
-## Run
+## Download and install
 
-```bash
-./run.sh                                 # empty window, then Open… (or drop a file in)
-./run.sh ~/Downloads/part.gcode          # open a file directly
-./run.sh ~/Downloads/part.gcode.3mf      # Bambu "plate sliced file"
-./run.sh ~/Downloads/part.bgcode         # Prusa binary G-code
-./install-desktop.sh                     # Linux: add to the app menu
-```
+Get the latest version from the
+[**Releases page**](https://github.com/armchairpolymath/ventris/releases/latest).
 
-On Windows use `run.bat [file]`. On any OS, `python -m gcode_analyzer [file]` from
-the project folder (with the venv's Python) works too.
+| System | Download | Install |
+|---|---|---|
+| Windows 10/11 (64-bit) | `Ventris-…-windows-x64-setup.exe` | Run it. Installs for your user account only; no admin rights needed. |
+| Windows, no install | `Ventris-…-windows-x64.zip` | Unzip anywhere and run `Ventris.exe`. |
+| macOS, Apple silicon (M1 and newer) | `Ventris-…-macos-arm64.dmg` | Open it and drag Ventris to Applications. |
+| macOS, Intel | `Ventris-…-macos-x86_64.dmg` | Same as above. |
+| Linux (x86-64) | `Ventris-…-linux-x86_64.AppImage` | Make it executable (`chmod +x Ventris-*.AppImage`), then run it. |
 
-The app follows the system's light/dark setting. On Linux it reads it from the
-desktop settings portal (GNOME, KDE), because PySide6 from PyPI doesn't.
+### First launch: "unknown developer" warnings
+
+Ventris isn't code-signed, so Windows and macOS warn you the first time. That's
+expected for free apps from independent developers.
+
+- **Windows:** if SmartScreen says *"Windows protected your PC"*, click
+  **More info → Run anyway**.
+- **macOS:** the first time, macOS says Ventris "can't be opened" or "is damaged".
+  Click **Done**, then open **System Settings → Privacy & Security**, scroll down and
+  click **Open Anyway** next to the Ventris message. Or run once in Terminal:
+  `xattr -dr com.apple.quarantine /Applications/Ventris.app`
+- **Linux:** no warning. If you use AppImageLauncher it will offer to add Ventris to
+  your app menu.
+
+`SHA256SUMS.txt` on the release page lets you check a download wasn't corrupted.
 
 ## Using it
 
-- Click any line (or use arrow keys) — the right pane updates.
+- Click a line (or move with the arrow keys) — the right pane follows.
 - **Ctrl+L** jumps to a line number. **Ctrl+O** open, **Ctrl+S** save,
-  **Ctrl+Shift+S** save as (on macOS, Cmd instead of Ctrl).
-- The pill next to each command says where the explanation comes from:
-  - **Standard G-code** — behaves like the Marlin standard.
-  - **Prusa-specific · documented by Prusa** — from Prusa's published G-code
-    docs and the comments in PrusaSlicer's printer profiles.
-  - **Bambu-specific · community knowledge** — Bambu doesn't publish docs for
-    these; text is based on Bambu's own comments and community research.
-  - Anything still uncertain says "believed" or "purpose isn't public".
-- Highlighted rows in *Machine state* were changed by the current line.
-- Editing: type in the left pane. Saving a `.gcode.3mf` rewrites the plate's
-  G-code *and* its `.md5` checksum so the printer accepts the file.
-- A `.bgcode` file opens as readable text, but can't be written back as binary:
-  Save asks for a `.gcode` name instead (Prusa printers print plain `.gcode` too).
+  **Ctrl+Shift+S** save as. On macOS use Cmd.
+- Drop a file onto the window to open it.
+- Highlighted rows in *Machine state* were changed by the current line; hover a name
+  for an explanation.
+- Ventris follows your system's light/dark setting.
 
-## Layout
+## Run from source
+
+Needs Python 3.10 or newer.
+
+```bash
+git clone https://github.com/armchairpolymath/ventris.git
+cd ventris
+python3 -m venv .venv
+.venv/bin/python -m pip install -r requirements.txt     # Windows: .venv\Scripts\python
+./run.sh [file]                                         # Windows: run.bat [file]
+```
+
+`python -m ventris [file]` works on any OS. On Linux, `./install-desktop.sh` adds the
+source checkout to your app menu. You can also `pip install .` to get a `ventris`
+command.
+
+### Tests
+
+```bash
+.venv/bin/python -m unittest
+```
+
+The window tests run offscreen (no display needed) and are skipped if PySide6 isn't
+installed. GitHub Actions runs the suite on Linux, Windows and macOS for every push.
+
+### Building the installers
+
+```bash
+.venv/bin/python -m pip install pyinstaller pillow
+.venv/bin/python packaging/build.py --smoke
+```
+
+This builds the package for the OS you run it on into `dist/release/` (`--smoke`
+starts the built app once to check it works). Releases are built by
+`.github/workflows/release.yml`: push a tag like `v0.2.0` and it builds every OS,
+attaches the files and publishes a GitHub Release. To release a new version, bump
+`__version__` in `ventris/__init__.py`, commit, then
+`git tag v0.2.0 && git push origin v0.2.0`.
+
+## How it works
 
 ```
-gcode_analyzer/
+ventris/
   parser.py          text line -> ParsedLine
-  state.py           MachineState + StateTracker (checkpointed replay)
+  state.py           machine-state simulation (checkpointed, fast on huge files)
   reference.py       Profile / CommandInfo types
   explain.py         ParsedLine + state + Profile -> Explanation
+  presentation.py    what the right pane shows (independent of the GUI toolkit)
   fileio.py          .gcode / .gcode.3mf / .bgcode load and save
   bgcode.py          Prusa binary G-code reader (heatshrink + MeatPack)
   dialects/common.py standard Marlin commands shared by all profiles
-  dialects/bambu.py  the Bambu Lab command reference
-  dialects/prusa.py  the Prusa command reference
-  presentation.py    what the right pane shows (toolkit-independent)
-  qt/                Qt window, editor + lazy highlighter, explanation pane, theme
-tests/               python3 -m unittest
-docs/specs/          design spec
+  dialects/bambu.py  Bambu Lab reference
+  dialects/prusa.py  Prusa reference
+  qt/                Qt window, editor with lazy syntax highlighting, theme
+packaging/           PyInstaller build script, Windows installer script
+tests/               unit tests (python -m unittest)
 ```
 
-## Adding a machine type
+### Adding a printer type
 
-Create `gcode_analyzer/dialects/<machine>.py` that builds a `Profile`
-(see `prusa.py`): start from `common.marlin_commands(...)` and add or override
-entries, then add it to the list in `dialects/__init__.py`. It shows up
-in the header-bar dropdown, and `detect()` lets it be picked automatically.
+Create `ventris/dialects/<machine>.py` that builds a `Profile` (see `prusa.py`):
+start from `common.marlin_commands(...)`, add or override entries, and list where each
+explanation comes from (`documented`, `vendor` or `community`). Register it in
+`ventris/dialects/__init__.py`. It then appears in the Machine menu and `detect()`
+lets it be chosen automatically.
 
-## Tests
-
-```bash
-.venv/bin/python -m unittest     # all tests, including the Qt window (runs offscreen)
-python3 -m unittest              # without PySide6: window tests are skipped
-```
-
-## Known limitations (v0.1)
+## Known limitations
 
 - Only the first plate of a multi-plate `.3mf` is opened.
-- Windows and macOS: the code is portable but has only been run on Fedora so far;
-  there are no installers yet (run from a venv as above).
-- Machine state is a simulation from the file alone — e.g. position after G28 is
-  shown as "unknown (homed)" because Bambu's home position isn't in the file.
+- Binary `.bgcode` can be read but not written back (saved as `.gcode` instead).
+- Machine state is simulated from the file alone — for example, the position right
+  after homing shows as "unknown" because home coordinates aren't in the file.
+- Bambu doesn't document its own commands; those explanations are best
+  understanding, marked as community knowledge.
+
+## License
+
+Copyright © 2026 Patrick Hoskins. Ventris is free software under the
+[GNU Affero General Public License v3.0](LICENSE).
+
+Binary G-code support (`ventris/bgcode.py`) is adapted from Prusa Research's
+[libbgcode](https://github.com/prusa3d/libbgcode) (AGPL-3.0), and the test files in
+`tests/fixtures/` come from libbgcode's test data. The heatshrink decoder follows
+[heatshrink](https://github.com/atomicobject/heatshrink) (ISC) and the
+MeatPack format follows [MeatPack](https://github.com/scottmudge/OctoPrint-MeatPack)
+(BSD-3-Clause). Command explanations draw on Prusa's published G-code documentation,
+the comments in PrusaSlicer's and Bambu Studio's printer profiles, and community
+references such as [OpenBambuAPI](https://github.com/Doridian/OpenBambuAPI).

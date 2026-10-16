@@ -1,0 +1,37 @@
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ventris"
+dynamic = ["version"]
+description = "Explains G-code line by line, for Bambu Lab and Prusa 3D printers"
+readme = "README.md"
+license = "AGPL-3.0-only"
+license-files = ["LICENSE"]
+authors = [{ name = "Patrick Hoskins", email = "patrick@patrickhoskins.com" }]
+requires-python = ">=3.10"
+dependencies = ["PySide6-Essentials>=6.8"]
+keywords = ["gcode", "3d-printing", "bambu", "prusa", "bgcode"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Environment :: X11 Applications :: Qt",
+    "Operating System :: OS Independent",
+    "Topic :: Printing",
+]
+
+[project.urls]
+Homepage = "https://github.com/armchairpolymath/ventris"
+Issues = "https://github.com/armchairpolymath/ventris/issues"
+
+[project.gui-scripts]
+ventris = "ventris.qt.app:main"
+
+[tool.setuptools.dynamic]
+version = { attr = "ventris.__version__" }
+
+[tool.setuptools.packages.find]
+include = ["ventris*"]
+
+[tool.setuptools.package-data]
+ventris = ["assets/*.png"]

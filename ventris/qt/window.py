@@ -10,7 +10,7 @@ from PySide6.QtWidgets import (QComboBox, QFileDialog, QLabel, QLineEdit, QMainW
                                QMessageBox, QPushButton, QSizePolicy, QSplitter,
                                QStackedWidget, QToolBar, QVBoxLayout, QWidget)
 
-from .. import fileio
+from .. import APP_NAME, SOURCE_URL, __version__, fileio
 from ..dialects import detect_profile, profiles
 from ..explain import explain
 from ..parser import parse_line
@@ -19,7 +19,6 @@ from . import theme
 from .editor import CodeEditor
 from .explain_view import ExplainView
 
-APP_NAME = "G-code Analyzer"
 FILE_FILTER = ("G-code files (*.gcode *.gco *.g *.nc *.3mf *.bgcode);;"
                "Plain G-code (*.gcode);;All files (*)")
 
@@ -104,6 +103,8 @@ class MainWindow(QMainWindow):
                                       triggered=self.save_as)
         quit_action = QAction("&Quit", self, shortcut=QKeySequence.StandardKey.Quit,
                               triggered=self.close)
+        about_action = QAction(f"&About {APP_NAME}", self, triggered=self.show_about)
+        about_action.setMenuRole(QAction.MenuRole.AboutRole)
         goto_action = QAction("&Go to Line…", self, shortcut=QKeySequence("Ctrl+L"),
                               triggered=lambda: (self.goto_entry.setFocus(),
                                                  self.goto_entry.selectAll()))
@@ -113,6 +114,7 @@ class MainWindow(QMainWindow):
         file_menu.addSeparator()
         file_menu.addAction(quit_action)
         self.menuBar().addMenu("&Go").addAction(goto_action)
+        self.menuBar().addMenu("&Help").addAction(about_action)
 
         toolbar = QToolBar("Main")
         toolbar.setMovable(False)
@@ -303,6 +305,18 @@ class MainWindow(QMainWindow):
         self.goto_entry.clear()
 
     # ------------------------------------------------------------------ helpers
+
+    def show_about(self) -> None:
+        QMessageBox.about(
+            self, f"About {APP_NAME}",
+            f"<h3>{APP_NAME} {__version__}</h3>"
+            "<p>Explains G-code line by line, for Bambu Lab and Prusa 3D printers.</p>"
+            "<p>Copyright © 2026 Patrick Hoskins.<br>"
+            "Licensed under the GNU Affero General Public License v3.0. This program "
+            "comes with ABSOLUTELY NO WARRANTY.</p>"
+            f'<p>Source code: <a href="{SOURCE_URL}">{SOURCE_URL}</a></p>'
+            "<p>Binary G-code support is adapted from Prusa Research's libbgcode "
+            "(AGPL-3.0).</p>")
 
     def _update_title(self) -> None:
         if not self.document:

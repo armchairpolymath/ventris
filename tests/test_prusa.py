@@ -1,11 +1,11 @@
 import unittest
 from pathlib import Path
 
-from gcode_analyzer.bgcode import decode
-from gcode_analyzer.dialects import detect_profile, get_profile, profiles
-from gcode_analyzer.explain import explain
-from gcode_analyzer.parser import parse_line
-from gcode_analyzer.state import MachineState
+from ventris.bgcode import decode
+from ventris.dialects import detect_profile, get_profile, profiles
+from ventris.explain import explain
+from ventris.parser import parse_line
+from ventris.state import MachineState
 
 FIXTURES = Path(__file__).parent / "fixtures"
 

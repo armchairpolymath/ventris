@@ -4,7 +4,7 @@ import unittest
 import zipfile
 from pathlib import Path
 
-from gcode_analyzer.fileio import FileFormatError, load, save
+from ventris.fileio import FileFormatError, load, save
 
 
 class FileIOTest(unittest.TestCase):

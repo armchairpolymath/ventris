@@ -3,7 +3,7 @@ import unittest
 import zlib
 from pathlib import Path
 
-from gcode_analyzer.bgcode import BgcodeError, decode, heatshrink_decode, meatpack_decode
+from ventris.bgcode import BgcodeError, decode, heatshrink_decode, meatpack_decode
 
 FIXTURES = Path(__file__).parent / "fixtures"
 

@@ -30,7 +30,7 @@ G1 X20 Y10 E.5
 class QtWindowTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        from gcode_analyzer.qt.window import MainWindow
+        from ventris.qt.window import MainWindow
         cls.app = QApplication.instance() or QApplication([])
         cls.MainWindow = MainWindow
 

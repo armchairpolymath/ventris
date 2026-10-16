@@ -1,9 +1,9 @@
 import unittest
 
-from gcode_analyzer.dialects import get_profile, profiles
-from gcode_analyzer.explain import explain
-from gcode_analyzer.parser import parse_line
-from gcode_analyzer.state import MachineState
+from ventris.dialects import get_profile, profiles
+from ventris.explain import explain
+from ventris.parser import parse_line
+from ventris.state import MachineState
 
 
 def ex(text, before=None):
