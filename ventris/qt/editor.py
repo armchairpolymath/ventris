@@ -11,7 +11,7 @@ from PySide6.QtWidgets import QPlainTextEdit, QTextEdit, QWidget
 
 from . import theme
 
-_WORD = re.compile(r"^\s*([GgMm]\d+(?:\.\d+)?|[Tt]\d+)")
+_WORD = re.compile(r"^\s*([GgMm]\d+(?:\.\d+)?|[Tt]\d+|[A-Z][A-Z0-9_]*[A-Z0-9])(?=\s|$|;)")
 _PARAM = re.compile(r"([A-Za-z])(0[xX][0-9A-Fa-f]+|[-+]?(?:\d+\.?\d*|\.\d+))")
 
 
@@ -72,7 +72,9 @@ class LazyHighlighter:
         code = text[:code_end]
         if m := _WORD.match(code):
             word = m.group(1)
-            add(m.start(1), len(word), word[0].upper())
+            # G/M/T codes get their own colors; word commands (Ruida, macros) look like M codes
+            key = word[0].upper() if word[0] in "GgMmTt" and word[1:2].isdigit() else "M"
+            add(m.start(1), len(word), key)
             for p in _PARAM.finditer(code, m.end(1)):
                 add(p.start(1), 1, "letter")
                 add(p.start(2), len(p.group(2)), "number")

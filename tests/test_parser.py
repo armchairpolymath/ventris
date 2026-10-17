@@ -59,6 +59,13 @@ class ParseLineTest(unittest.TestCase):
         self.assertEqual(p.code, "EXCLUDE_OBJECT_START")
         self.assertEqual(p.params, {"_args": "NAME=part_1"})
 
+    def test_word_command_with_letter_params(self):
+        p = parse_line("CUT_ABS X50 Y-4.5 ; bytes: a8 00")
+        self.assertEqual(p.code, "CUT_ABS")
+        self.assertEqual(p.params, {"X": "50", "Y": "-4.5"})
+        self.assertEqual(p.comment, "bytes: a8 00")
+        self.assertEqual(parse_line("FILENAME dolly1").params, {"_args": "dolly1"})
+
     def test_hex_value(self):
         self.assertEqual(parse_line("M708 A0x1e X12").params, {"A": "0x1e", "X": "12"})
 

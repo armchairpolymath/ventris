@@ -1,4 +1,4 @@
-"""Open and save plain .gcode, Bambu .gcode.3mf archives and Prusa .bgcode files."""
+"""Open and save plain .gcode, Bambu .gcode.3mf and Prusa .bgcode files; read Ruida .rd jobs."""
 
 from __future__ import annotations
 
@@ -10,7 +10,7 @@ import zipfile
 from dataclasses import dataclass
 from pathlib import Path
 
-from . import bgcode
+from . import bgcode, ruida
 
 _PLATE_GCODE = re.compile(r"^Metadata/plate_(\d+)\.gcode$")
 
@@ -26,6 +26,7 @@ class Document:
     inner_name: str | None = None  # G-code entry inside a .3mf, if any
     binary: bool = False  # opened from Prusa binary G-code
     newline: str = "\n"  # line ending the file used; restored on save
+    read_only: bool = False  # decoded views (Ruida .rd) can't be saved
 
     @property
     def is_3mf(self) -> bool:
@@ -44,6 +45,11 @@ def load(path: Path) -> Document:
     path = Path(path)
     if not is_3mf(path):
         raw = path.read_bytes()
+        if path.suffix.lower() == ".rd":
+            try:
+                return Document(path, ruida.decode(raw).to_text(), read_only=True)
+            except ruida.RuidaError as exc:
+                raise FileFormatError(str(exc)) from exc
         if bgcode.is_bgcode(raw):
             try:
                 return Document(path, bgcode.decode(raw).to_text(), binary=True)
@@ -67,6 +73,9 @@ def load(path: Path) -> Document:
 def save(doc: Document, text: str, path: Path) -> None:
     """Save `text` to `path`. A .3mf target gets its plate G-code and md5 replaced."""
     path = Path(path)
+    if doc.read_only:
+        raise FileFormatError("This is a decoded view of a laser job (.rd) and can't be "
+                              "saved. Ventris opens .rd files read-only.")
     if doc.newline != "\n":
         text = text.replace("\n", doc.newline)
     data = text.encode("utf-8")

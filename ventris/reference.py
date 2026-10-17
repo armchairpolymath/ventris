@@ -43,6 +43,7 @@ class Profile:
     comment_markers: list[CommentMarker]
     detect: Callable[[str], float]
     vendor: str = ""  # short maker name for labels ("Bambu", "Prusa")
+    kind: str = "printer"  # "printer" or "laser": picks the machine-state panel
 
     def lookup(self, code: str) -> CommandInfo | None:
         if code in self.commands:

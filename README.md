@@ -1,6 +1,6 @@
 # Ventris
 
-**Explains G-code line by line.** Open a 3D-printer file and click any line: Ventris
+**Explains G-code line by line.** Open a 3D-printer or laser-cutter file and click any line: Ventris
 tells you, in plain English, what that line makes the printer do — and shows what the
 machine is doing at that moment (position, temperatures, fans, layer, what part of the
 model is printing).
@@ -28,10 +28,18 @@ toolbar.
 |---|---|
 | **Bambu Lab** — X1, P1, A1 series | Bambu Studio `.gcode` and `.gcode.3mf` (plate sliced file) |
 | **Prusa** — CORE One, MK4/MK4S, MK3.5, MINI, XL, MK3/MK3S | PrusaSlicer `.gcode` and binary `.bgcode` |
+| **Thunder Laser Nova** and other **Ruida**-controlled laser cutters | `.rd` job files from LightBurn ("Save RD File") or RDWorks — read-only |
 
 Saving a `.gcode.3mf` rewrites the plate's G-code and its checksum so the printer
 accepts it. Binary `.bgcode` files open as readable text and are saved as plain
 `.gcode` (Prusa printers print those too).
+
+**Laser cutters with Ruida controllers don't use G-code.** Their `.rd` job files are
+scrambled binary. Ventris decodes them into one readable line per controller command
+— `CUT_ABS X50 Y50`, `SPEED F30`, `MAX_POWER S70` — with positions in mm, speeds in
+mm/s and power in %, and keeps each command's raw bytes on the line. The machine
+panel switches to laser terms (beam on/off, power, speed, air assist, layer).
+`.rd` files are read-only: Ventris never writes them.
 
 ## Download and install
 
@@ -122,9 +130,11 @@ ventris/
   presentation.py    what the right pane shows (independent of the GUI toolkit)
   fileio.py          .gcode / .gcode.3mf / .bgcode load and save
   bgcode.py          Prusa binary G-code reader (heatshrink + MeatPack)
+  ruida.py           Ruida .rd laser job decoder (unscramble + command table)
   dialects/common.py standard Marlin commands shared by all profiles
   dialects/bambu.py  Bambu Lab reference
   dialects/prusa.py  Prusa reference
+  dialects/ruida.py  Ruida / Thunder Laser reference
   qt/                Qt window, editor with lazy syntax highlighting, theme
 packaging/           PyInstaller build script, Windows installer script
 tests/               unit tests (python -m unittest)
@@ -136,7 +146,7 @@ Create `ventris/dialects/<machine>.py` that builds a `Profile` (see `prusa.py`):
 start from `common.marlin_commands(...)`, add or override entries, and list where each
 explanation comes from (`documented`, `vendor` or `community`). Register it in
 `ventris/dialects/__init__.py`. It then appears in the Machine menu and `detect()`
-lets it be chosen automatically.
+lets it be chosen automatically. Set `kind="laser"` to get the laser state panel.
 
 ## Known limitations
 
@@ -146,6 +156,10 @@ lets it be chosen automatically.
   after homing shows as "unknown" because home coordinates aren't in the file.
 - Bambu doesn't document its own commands; those explanations are best
   understanding, marked as community knowledge.
+- Ruida doesn't document its command set either. The `.rd` decoder was checked
+  against real jobs from a Thunder Laser Nova 35 saved by RDWorks; files saved by
+  LightBurn should decode the same way but haven't been tested yet. Some settings
+  commands are only partly understood and say so.
 
 ## License
 
@@ -159,4 +173,7 @@ Binary G-code support (`ventris/bgcode.py`) is adapted from Prusa Research's
 MeatPack format follows [MeatPack](https://github.com/scottmudge/OctoPrint-MeatPack)
 (BSD-3-Clause). Command explanations draw on Prusa's published G-code documentation,
 the comments in PrusaSlicer's and Bambu Studio's printer profiles, and community
-references such as [OpenBambuAPI](https://github.com/Doridian/OpenBambuAPI).
+references such as [OpenBambuAPI](https://github.com/Doridian/OpenBambuAPI). The Ruida
+`.rd` format and command meanings follow the reverse-engineering in
+[MeerK40t](https://github.com/meerk40t/meerk40t) (MIT) and
+[jnweiger/ruida-laser](https://github.com/jnweiger/ruida-laser).

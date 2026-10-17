@@ -13,14 +13,15 @@ from PySide6.QtWidgets import (QComboBox, QFileDialog, QLabel, QLineEdit, QMainW
 from .. import APP_NAME, SOURCE_URL, __version__, fileio
 from ..dialects import detect_profile, profiles
 from ..explain import explain
+from ..presentation import state_rows
 from ..parser import parse_line
 from ..state import StateTracker
 from . import theme
 from .editor import CodeEditor
 from .explain_view import ExplainView
 
-FILE_FILTER = ("G-code files (*.gcode *.gco *.g *.nc *.3mf *.bgcode);;"
-               "Plain G-code (*.gcode);;All files (*)")
+FILE_FILTER = ("Machine files (*.gcode *.gco *.g *.nc *.3mf *.bgcode *.rd);;"
+               "Plain G-code (*.gcode);;Ruida laser jobs (*.rd);;All files (*)")
 
 
 class MainWindow(QMainWindow):
@@ -72,8 +73,9 @@ class MainWindow(QMainWindow):
         empty_box = QVBoxLayout(empty)
         empty_box.addStretch(1)
         for text, name in [("Open a G-code file", "emptyTitle"),
-                           ("Choose a .gcode, Bambu .gcode.3mf or Prusa .bgcode file — or "
-                            "drop one here. Click any line to see what it does.", "emptyText")]:
+                           ("Choose a .gcode, Bambu .gcode.3mf, Prusa .bgcode or Ruida "
+                            "laser .rd file — or drop one here. Click any line to see what "
+                            "it does.", "emptyText")]:
             label = QLabel(text)
             label.setObjectName(name)
             label.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -174,6 +176,10 @@ class MainWindow(QMainWindow):
         self.profile_combo.blockSignals(True)
         self.profile_combo.setCurrentIndex(self.profiles.index(detected))
         self.profile_combo.blockSignals(False)
+        self.explain_view.set_state_rows(state_rows(detected.kind))
+        self.editor.setReadOnly(doc.read_only)
+        for action in (self.save_action, self.save_as_action):
+            action.setEnabled(not doc.read_only)
 
         self.stack.setCurrentIndex(1)
         self.editor.go_to_line(0)
@@ -181,12 +187,15 @@ class MainWindow(QMainWindow):
         self._refresh_explanation()
         if doc.is_3mf:
             self.statusBar().showMessage(f"Opened {doc.inner_name} from the 3MF archive", 4000)
+        elif doc.read_only:
+            self.statusBar().showMessage(
+                "Decoded Ruida laser job — read-only (Ventris doesn't write .rd files)", 8000)
         elif doc.is_bgcode:
             self.statusBar().showMessage(
                 "Opened Prusa binary G-code — edits are saved as plain .gcode", 6000)
 
     def save(self) -> bool:
-        if not self.document:
+        if not self.document or self.document.read_only:
             return False
         if self.document.is_bgcode:
             self.statusBar().showMessage(
@@ -195,7 +204,7 @@ class MainWindow(QMainWindow):
         return self._save_to(self.document.path)
 
     def save_as(self) -> bool:
-        if not self.document:
+        if not self.document or self.document.read_only:
             return False
         path = self.document.path
         suggested = path.with_suffix(".gcode") if self.document.is_bgcode else path
@@ -295,6 +304,7 @@ class MainWindow(QMainWindow):
 
     def _on_profile_changed(self, index: int) -> None:
         self.profile = self.profiles[index]
+        self.explain_view.set_state_rows(state_rows(self.profile.kind))
         self._update_title()
         self._refresh_explanation()
 
@@ -310,7 +320,8 @@ class MainWindow(QMainWindow):
         QMessageBox.about(
             self, f"About {APP_NAME}",
             f"<h3>{APP_NAME} {__version__}</h3>"
-            "<p>Explains G-code line by line, for Bambu Lab and Prusa 3D printers.</p>"
+            "<p>Explains G-code line by line, for Bambu Lab and Prusa 3D printers, and "
+            "decodes Ruida laser jobs (Thunder Laser Nova).</p>"
             "<p>Copyright © 2026 Patrick Hoskins.<br>"
             "Licensed under the GNU Affero General Public License v3.0. This program "
             "comes with ABSOLUTELY NO WARRANTY.</p>"

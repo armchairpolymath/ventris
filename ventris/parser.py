@@ -59,7 +59,8 @@ def parse_line(text: str) -> ParsedLine:
         result.code = match.group(1).upper()
         rest = body[match.end():].strip()
         if rest:
-            result.params = {"_args": rest}
+            # letter params (CUT_ABS X50 Y0) when they parse cleanly, else raw text
+            result.params = _parse_params(rest)
         return result
 
     result.params = {"_args": body}

@@ -5,14 +5,14 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "ventris"
 dynamic = ["version"]
-description = "Explains G-code line by line, for Bambu Lab and Prusa 3D printers"
+description = "Explains G-code line by line for Bambu Lab and Prusa 3D printers, and Ruida laser jobs"
 readme = "README.md"
 license = "AGPL-3.0-only"
 license-files = ["LICENSE"]
 authors = [{ name = "Patrick Hoskins", email = "patrick@patrickhoskins.com" }]
 requires-python = ">=3.10"
 dependencies = ["PySide6-Essentials>=6.8"]
-keywords = ["gcode", "3d-printing", "bambu", "prusa", "bgcode"]
+keywords = ["gcode", "3d-printing", "bambu", "prusa", "bgcode", "laser", "ruida", "thunder-laser"]
 classifiers = [
     "Programming Language :: Python :: 3",
     "Environment :: X11 Applications :: Qt",

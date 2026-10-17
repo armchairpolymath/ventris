@@ -98,7 +98,21 @@ class ExplainView(QScrollArea):
         box.addLayout(self.cards_grid)
         self._cards: list[QFrame] = []
         self._state_widgets = []
-        for group_title, rows in STATE_ROWS:
+        self._state_rows = None
+        self._columns = 0
+        self.set_state_rows(STATE_ROWS)
+        box.addStretch(1)
+
+    def set_state_rows(self, groups) -> None:
+        """Rebuild the machine-state cards (printers and lasers show different values)."""
+        if groups is self._state_rows:
+            return
+        self._state_rows = groups
+        for card in self._cards:
+            self.cards_grid.removeWidget(card)
+            card.deleteLater()
+        self._cards, self._state_widgets = [], []
+        for group_title, rows in groups:
             card = QFrame()
             card.setObjectName("stateCard")
             card_box = QVBoxLayout(card)
@@ -119,9 +133,8 @@ class ExplainView(QScrollArea):
                 self._state_widgets.append((row, value, field_names, fmt))
             card_box.addStretch(1)
             self._cards.append(card)
-        self._columns = 0
-        self._layout_cards(2)
-        box.addStretch(1)
+        columns, self._columns = self._columns or 2, 0
+        self._layout_cards(columns)
 
     # layout ------------------------------------------------------------------
 

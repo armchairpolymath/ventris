@@ -41,6 +41,11 @@ class MachineState:
     acceleration: float | None = None
     speed_factor: int | None = None
     flow_factor: int | None = None
+    # laser cutters (Ruida)
+    laser: str | None = None  # "on" while cutting, "off" while travelling
+    power_min: float | None = None
+    power_max: float | None = None
+    air_assist: bool | None = None
 
     def apply(self, line: ParsedLine) -> None:
         if line.comment:
@@ -148,6 +153,21 @@ def _tool(s: MachineState, line: ParsedLine) -> None:
         s.filament = slot
 
 
+def _laser_move(beam: str, relative: bool):
+    def handler(s: MachineState, line: ParsedLine) -> None:
+        for axis in ("x", "y"):
+            value = line.number(axis.upper())
+            if value is not None:
+                setattr(s, axis, (getattr(s, axis) or 0.0) + value if relative else value)
+        s.laser = beam
+    return handler
+
+
+def _laser_speed(s: MachineState, line: ParsedLine) -> None:
+    if (f := line.number("F")) is not None:
+        s.feed = f * 60  # Ruida speeds are mm/s; feed is stored in mm/min like G-code
+
+
 _HANDLERS = {
     "G0": _move, "G1": _move, "G2": _move, "G3": _move,
     "G20": _setter("units", "inch"), "G21": _setter("units", "mm"),
@@ -163,6 +183,16 @@ _HANDLERS = {
     "M204": _number_setter("acceleration"),
     "M220": _number_setter("speed_factor", cast=int),
     "M221": _number_setter("flow_factor", cast=int),
+    # Ruida laser jobs (lines produced by ventris.ruida)
+    "MOVE_ABS": _laser_move("off", False), "MOVE_REL": _laser_move("off", True),
+    "MOVE_REL_X": _laser_move("off", True), "MOVE_REL_Y": _laser_move("off", True),
+    "CUT_ABS": _laser_move("on", False), "CUT_REL": _laser_move("on", True),
+    "CUT_REL_X": _laser_move("on", True), "CUT_REL_Y": _laser_move("on", True),
+    "SPEED": _laser_speed,
+    "MIN_POWER": _number_setter("power_min"), "MAX_POWER": _number_setter("power_max"),
+    "AIR_ASSIST_ON": _setter("air_assist", True), "AIR_ASSIST_OFF": _setter("air_assist", False),
+    "LAYER": _number_setter("layer", letter="L", cast=int),
+    "END_OF_FILE": _setter("laser", "off"),
 }
 
 FIELD_NAMES = [f.name for f in fields(MachineState)]

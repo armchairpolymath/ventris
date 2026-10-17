@@ -85,6 +85,21 @@ class MachineStateTest(unittest.TestCase):
         self.assertEqual(s, MachineState())
 
 
+class LaserStateTest(unittest.TestCase):
+    def test_ruida_job(self):
+        s = run("LAYER L1", "SPEED F30", "MIN_POWER S40", "MAX_POWER S70", "AIR_ASSIST_ON",
+                "MOVE_ABS X10 Y5")
+        self.assertEqual((s.x, s.y, s.laser), (10, 5, "off"))
+        self.assertEqual((s.layer, s.feed, s.power_min, s.power_max, s.air_assist),
+                         (1, 1800, 40, 70, True))
+        s.apply(parse_line("CUT_REL X2 Y-1"))
+        self.assertEqual((s.x, s.y, s.laser), (12, 4, "on"))
+        s.apply(parse_line("CUT_REL_Y Y3"))
+        self.assertEqual(s.y, 7)
+        s.apply(parse_line("END_OF_FILE"))
+        self.assertEqual(s.laser, "off")
+
+
 class StateTrackerTest(unittest.TestCase):
     def make_lines(self, n):
         return ["M83", "G90"] + [f"G1 X{i} E1" for i in range(n)]

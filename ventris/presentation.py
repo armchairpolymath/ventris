@@ -98,6 +98,39 @@ STATE_ROWS = [
 ]
 
 
+LASER_STATE_ROWS = [
+    ("Laser head", [
+        ("X", ["x"], lambda s: "—" if s.x is None else num(s.x, "mm"),
+         "Left/right position of the laser head, measured from the job origin."),
+        ("Y", ["y"], lambda s: "—" if s.y is None else num(s.y, "mm"),
+         "Front/back position of the laser head, measured from the job origin."),
+        ("Beam", ["laser"], lambda s: {"on": "on — cutting", "off": "off — travelling"}
+         .get(s.laser, "—"), "Whether the laser is firing during this move."),
+    ]),
+    ("Settings", [
+        ("Speed", ["feed"], _speed, "How fast the head moves while cutting."),
+        ("Min power", ["power_min"], lambda s: _pct_float(s.power_min),
+         "Power used when the head slows down (corners)."),
+        ("Max power", ["power_max"], lambda s: _pct_float(s.power_max),
+         "Power used at full speed."),
+        ("Air assist", ["air_assist"],
+         lambda s: "—" if s.air_assist is None else ("on" if s.air_assist else "off"),
+         "A jet of air at the cut that keeps flames down and clears smoke."),
+        ("Layer", ["layer"], lambda s: "—" if s.layer is None else str(s.layer),
+         "Which layer (color in the design software) is being cut."),
+    ]),
+]
+
+
+def _pct_float(value: float | None) -> str:
+    return "—" if value is None else f"{num(value)}%"
+
+
+def state_rows(kind: str):
+    """Machine-state panel layout for a profile kind ("printer" or "laser")."""
+    return LASER_STATE_ROWS if kind == "laser" else STATE_ROWS
+
+
 @dataclass
 class Badge:
     text: str
@@ -130,6 +163,8 @@ def source_badge(exp: Explanation) -> Badge | None:
 def file_note(exp: Explanation) -> str | None:
     """A comment written after a command on the same line."""
     if exp.kind in ("command", "unknown") and exp.comment:
+        if exp.comment.startswith("bytes:"):
+            return f"Raw bytes in the file: {exp.comment[6:].strip()}"
         return f"Note written in the file: “{exp.comment}”"
     return None
 

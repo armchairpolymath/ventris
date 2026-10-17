@@ -111,11 +111,39 @@ class QtWindowTest(unittest.TestCase):
         self.assertFalse(self.window.document.is_bgcode)
         self.assertIn("M862.3", out.read_text())
 
+    def test_ruida_job_opens_read_only_with_laser_panel(self):
+        from tests.test_ruida import job_bytes
+        path = self.tmp / "square.rd"
+        path.write_bytes(job_bytes())
+        self.window.open_path(path)
+        self.assertEqual(self.window.profile.key, "ruida")
+        self.assertTrue(self.window.editor.isReadOnly())
+        self.assertFalse(self.window.save_action.isEnabled())
+        self.assertFalse(self.window.save())
+        lines = self.window.editor.toPlainText().splitlines()
+        self.window.editor.go_to_line(lines.index(next(l for l in lines if l.startswith("CUT_ABS"))))
+        self.settle(100)
+        self.assertIn("laser on", self.sentence())
+        self.assertEqual(self.state_value("laser"), "on — cutting")
+        self.assertEqual(self.state_value("power_max"), "70%")
+        self.assertIn("Raw bytes in the file: a8", self.window.explain_view.file_note.text())
+        # back to a printer file: printer panel and editing return
+        self.window.open_path(self.write_sample())
+        self.assertFalse(self.window.editor.isReadOnly())
+        self.assertTrue(self.window.save_action.isEnabled())
+        self.assertEqual(self.state_value("hotend_target"), "—")
+
     def test_lazy_highlighter_colors_visible_lines(self):
         self.window.open_path(self.write_sample())
         self.settle(100)
         block = self.window.editor.document().findBlockByNumber(6)  # G1 X10 Y10 E.5 F3000
         self.assertGreaterEqual(len(block.layout().formats()), 9)  # G1 + 4 letter/number pairs
+
+    def test_highlighter_colors_word_commands(self):
+        spans = [(r.start, r.length) for r in
+                 self.window.editor.highlighter.ranges_for("CUT_ABS X50 Y0 ; bytes: a8")]
+        self.assertIn((0, 7), spans)  # CUT_ABS
+        self.assertIn((8, 1), spans)  # X
 
     def test_highlighter_ranges(self):
         ranges = self.window.editor.highlighter.ranges_for("M104 S220 ; heat")

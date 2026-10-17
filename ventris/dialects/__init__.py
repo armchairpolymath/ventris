@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 from ..reference import Profile
-from . import bambu, prusa
+from . import bambu, prusa, ruida
 
-_PROFILES: dict[str, Profile] = {p.key: p for p in [bambu.PROFILE, prusa.PROFILE]}
+_PROFILES: dict[str, Profile] = {p.key: p for p in [bambu.PROFILE, prusa.PROFILE, ruida.PROFILE]}
 
 
 def profiles() -> list[Profile]:

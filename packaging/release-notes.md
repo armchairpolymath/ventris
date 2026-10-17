@@ -1,7 +1,11 @@
-First public release of **Ventris** — explains G-code line by line.
+**New: laser cutters.** Ventris now opens `.rd` job files for **Thunder Laser Nova** and
+other **Ruida**-controlled laser cutters. These machines don't use G-code; Ventris
+decodes the scrambled binary job into one readable line per command (moves, cuts,
+speed, power, layers, air assist) and explains each one, with a laser-specific machine
+panel. `.rd` files open read-only.
 
-**Printers:** Bambu Lab (X1, P1, A1) and Prusa (CORE One, MK4/MK4S, MK3.5, MINI, XL, MK3/MK3S).
-**Files:** `.gcode`, Bambu `.gcode.3mf`, Prusa binary `.bgcode`.
+Also: Windows line endings are preserved on save, and saving Bambu `.gcode.3mf` files
+works on Windows.
 
 ### Downloads
 
