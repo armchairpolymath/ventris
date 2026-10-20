@@ -11,7 +11,7 @@ from PySide6.QtWidgets import (QComboBox, QFileDialog, QLabel, QLineEdit, QMainW
                                QStackedWidget, QToolBar, QVBoxLayout, QWidget)
 
 from .. import APP_NAME, SOURCE_URL, __version__, fileio
-from ..dialects import detect_profile, profiles
+from ..dialects import detect_profile, detection_sample, profiles
 from ..explain import explain
 from ..presentation import state_rows
 from ..parser import parse_line
@@ -171,7 +171,7 @@ class MainWindow(QMainWindow):
 
         # Load the tracker before changing the profile, which refreshes the pane.
         self._reset_tracker()
-        detected = detect_profile(doc.text[:20000])
+        detected = detect_profile(detection_sample(doc.text))
         self.profile = detected
         self.profile_combo.blockSignals(True)
         self.profile_combo.setCurrentIndex(self.profiles.index(detected))

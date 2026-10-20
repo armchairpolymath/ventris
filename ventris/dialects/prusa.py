@@ -547,10 +547,10 @@ COMMENT_MARKERS = [
 
 
 def _detect(sample: str) -> float:
-    if "PrusaSlicer" in sample:
+    if "M862.3" in sample or "M862.1" in sample:  # Prusa's printer checks
         return 1.0
-    if "M862.3" in sample or "M862.1" in sample:
-        return 0.9
+    if "PrusaSlicer" in sample:  # sliced by PrusaSlicer, maybe for another brand
+        return 0.6
     return 0.1
 
 

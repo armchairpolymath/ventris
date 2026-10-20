@@ -12,6 +12,8 @@ _LAYER_COMMENT = re.compile(r"layer num/total_layer_count:\s*(\d+)\s*/\s*(\d+)",
 _Z_HEIGHT = re.compile(r"Z_HEIGHT:\s*([-\d.]+)", re.I)
 _FEATURE = re.compile(r"(?:FEATURE|TYPE):\s*(.+)", re.I)  # Bambu Studio / PrusaSlicer
 _PRUSA_Z = re.compile(r"Z:([-\d.]+)$")
+_PROGRESS_WORD = re.compile(r"(?<![A-Za-z])([PRL])([\d.]+)")  # skips QuietR / SportR
+_KEY_VALUE = re.compile(r"([A-Za-z_]+)=([-\d.]+)")
 
 
 @dataclass
@@ -136,12 +138,25 @@ def _fan_off(s: MachineState, line: ParsedLine) -> None:
 
 
 def _progress(s: MachineState, line: ParsedLine) -> None:
-    if (p := line.number("P")) is not None:
+    values = {k: line.number(k) for k in "PRL"}
+    if "_args" in line.params:  # Anycubic: M73 P1 R14 QuietR27 SportR11
+        values = {k: float(v) for k, v in _PROGRESS_WORD.findall(line.params["_args"])}
+    if (p := values.get("P")) is not None:
         s.progress = int(p)
-    if (r := line.number("R")) is not None:
+    if (r := values.get("R")) is not None:
         s.remaining_min = int(r)
-    if (layer := line.number("L")) is not None:
+    if (layer := values.get("L")) is not None:
         s.layer = int(layer)
+
+
+def _anycubic_start(s: MachineState, line: ParsedLine) -> None:
+    """G9111: Anycubic's start routine heats, homes and primes."""
+    args = {k.upper(): float(v) for k, v in _KEY_VALUE.findall(line.params.get("_args", ""))}
+    _home(s, ParsedLine(raw="G28"))
+    if "BEDTEMP" in args:
+        s.bed_target = args["BEDTEMP"]
+    if "EXTRUDERTEMP" in args:
+        s.hotend_target = args["EXTRUDERTEMP"]
 
 
 def _tool(s: MachineState, line: ParsedLine) -> None:
@@ -171,7 +186,7 @@ def _laser_speed(s: MachineState, line: ParsedLine) -> None:
 _HANDLERS = {
     "G0": _move, "G1": _move, "G2": _move, "G3": _move,
     "G20": _setter("units", "inch"), "G21": _setter("units", "mm"),
-    "G28": _home,
+    "G28": _home, "G9111": _anycubic_start,
     "G90": _setter("positioning", "absolute"), "G91": _setter("positioning", "relative"),
     "G92": _set_position,
     "M82": _setter("extrusion", "absolute"), "M83": _setter("extrusion", "relative"),

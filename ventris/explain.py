@@ -35,11 +35,18 @@ class Explanation:
 def explain(line: ParsedLine, before: MachineState, after: MachineState,
             profile: Profile) -> Explanation:
     if line.code is None:
-        if line.comment is None:
-            return Explanation("blank", "Blank line",
-                               "An empty line. The printer skips it; it only makes "
-                               "the file easier for people to read.")
-        return _explain_comment(line.comment, profile)
+        if "_args" not in line.params:
+            if line.comment is None:
+                return Explanation("blank", "Blank line",
+                                   "An empty line. The printer skips it; it only makes "
+                                   "the file easier for people to read.")
+            return _explain_comment(line.comment, profile)
+        return Explanation(
+            "unknown", "Not a command",
+            f"“{line.params['_args']}” isn't a G-code command. The printer will "
+            "ignore it or report an error. Text like this usually comes from printer "
+            "start/end code that is missing a semicolon in front of a note.",
+            comment=line.comment)
 
     info = profile.lookup(line.code)
     if info is None:

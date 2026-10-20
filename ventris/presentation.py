@@ -144,8 +144,9 @@ def source_badge(exp: Explanation) -> Badge | None:
         return Badge("Standard G-code", "standard")
     if exp.source == "vendor":
         return Badge(f"{vendor}-specific · documented by {vendor}", "standard",
-                     f"Based on {vendor}'s published G-code documentation and the "
-                     f"comments {vendor} writes in its slicer profiles.")
+                     f"Based on what {vendor} publishes itself: its G-code "
+                     "documentation, firmware source code or the comments in its "
+                     "slicer profiles.")
     if exp.source == "community":
         return Badge(f"{vendor}-specific · community knowledge", "community",
                      f"{vendor} doesn't publish documentation for this command. The "

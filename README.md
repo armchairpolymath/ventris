@@ -28,6 +28,7 @@ toolbar.
 |---|---|
 | **Bambu Lab** — X1, P1, A1 series | Bambu Studio `.gcode` and `.gcode.3mf` (plate sliced file) |
 | **Prusa** — CORE One, MK4/MK4S, MK3.5, MINI, XL, MK3/MK3S | PrusaSlicer `.gcode` and binary `.bgcode` |
+| **Anycubic Kobra** — Kobra, Plus, Max, Neo; Kobra 2, 2 Neo, 2 Pro, 2 Plus, 2 Max; Kobra 3, 3 V2, 3 Max; Kobra S1, S1 Max; Kobra X | `.gcode` from Anycubic Slicer Next, OrcaSlicer or PrusaSlicer |
 | **Thunder Laser Nova** and other **Ruida**-controlled laser cutters | `.rd` job files from LightBurn ("Save RD File") or RDWorks — read-only |
 
 Saving a `.gcode.3mf` rewrites the plate's G-code and its checksum so the printer
@@ -114,30 +115,31 @@ installed. GitHub Actions runs the suite on Linux, Windows and macOS for every p
 
 This builds the package for the OS you run it on into `dist/release/` (`--smoke`
 starts the built app once to check it works). Releases are built by
-`.github/workflows/release.yml`: push a tag like `v0.2.0` and it builds every OS,
+`.github/workflows/release.yml`: push a tag like `v0.3.0` and it builds every OS,
 attaches the files and publishes a GitHub Release. To release a new version, bump
 `__version__` in `ventris/__init__.py`, commit, then
-`git tag v0.2.0 && git push origin v0.2.0`.
+`git tag v0.3.0 && git push origin v0.3.0`.
 
 ## How it works
 
 ```
 ventris/
-  parser.py          text line -> ParsedLine
-  state.py           machine-state simulation (checkpointed, fast on huge files)
-  reference.py       Profile / CommandInfo types
-  explain.py         ParsedLine + state + Profile -> Explanation
-  presentation.py    what the right pane shows (independent of the GUI toolkit)
-  fileio.py          .gcode / .gcode.3mf / .bgcode load and save
-  bgcode.py          Prusa binary G-code reader (heatshrink + MeatPack)
-  ruida.py           Ruida .rd laser job decoder (unscramble + command table)
-  dialects/common.py standard Marlin commands shared by all profiles
-  dialects/bambu.py  Bambu Lab reference
-  dialects/prusa.py  Prusa reference
-  dialects/ruida.py  Ruida / Thunder Laser reference
-  qt/                Qt window, editor with lazy syntax highlighting, theme
-packaging/           PyInstaller build script, Windows installer script
-tests/               unit tests (python -m unittest)
+  parser.py             text line -> ParsedLine
+  state.py              machine-state simulation (checkpointed, fast on huge files)
+  reference.py          Profile / CommandInfo types
+  explain.py            ParsedLine + state + Profile -> Explanation
+  presentation.py       what the right pane shows (independent of the GUI toolkit)
+  fileio.py             .gcode / .gcode.3mf / .bgcode load and save
+  bgcode.py             Prusa binary G-code reader (heatshrink + MeatPack)
+  ruida.py              Ruida .rd laser job decoder (unscramble + command table)
+  dialects/common.py    standard Marlin commands shared by all profiles
+  dialects/bambu.py     Bambu Lab reference
+  dialects/prusa.py     Prusa reference
+  dialects/anycubic.py  Anycubic Kobra reference
+  dialects/ruida.py     Ruida / Thunder Laser reference
+  qt/                   Qt window, editor with lazy syntax highlighting, theme
+packaging/              PyInstaller build script, Windows installer script
+tests/                  unit tests (python -m unittest)
 ```
 
 ### Adding a printer type
@@ -146,7 +148,12 @@ Create `ventris/dialects/<machine>.py` that builds a `Profile` (see `prusa.py`):
 start from `common.marlin_commands(...)`, add or override entries, and list where each
 explanation comes from (`documented`, `vendor` or `community`). Register it in
 `ventris/dialects/__init__.py`. It then appears in the Machine menu and `detect()`
-lets it be chosen automatically. Set `kind="laser"` to get the laser state panel.
+lets it be chosen automatically: it gets the start and the end of the file (slicers
+like OrcaSlicer and PrusaSlicer name the printer in a settings block at the end) and
+the highest score wins. Return 1.0 only when the file names your machine or uses a
+command only it has; a slicer name alone is weaker evidence, since one slicer serves
+many brands (`anycubic.py` is a worked example). Set `kind="laser"` to get the laser
+state panel.
 
 ## Known limitations
 
@@ -156,6 +163,11 @@ lets it be chosen automatically. Set `kind="laser"` to get the laser state panel
   after homing shows as "unknown" because home coordinates aren't in the file.
 - Bambu doesn't document its own commands; those explanations are best
   understanding, marked as community knowledge.
+- Anycubic doesn't publish a G-code reference. The Kobra 3/S1/X start line (G9111)
+  is explained from Anycubic's published Kobra 3 firmware source; other Anycubic
+  codes (M991, the layer form of M73) are explained from the comments in
+  Anycubic's slicer profiles and marked as community knowledge. The Kobra 4 isn't
+  covered yet: no public slicer profile for it was available to check against.
 - Ruida doesn't document its command set either. The `.rd` decoder was checked
   against real jobs from a Thunder Laser Nova 35 saved by RDWorks; files saved by
   LightBurn should decode the same way but haven't been tested yet. Some settings
@@ -172,8 +184,10 @@ Binary G-code support (`ventris/bgcode.py`) is adapted from Prusa Research's
 [heatshrink](https://github.com/atomicobject/heatshrink) (ISC) and the
 MeatPack format follows [MeatPack](https://github.com/scottmudge/OctoPrint-MeatPack)
 (BSD-3-Clause). Command explanations draw on Prusa's published G-code documentation,
-the comments in PrusaSlicer's and Bambu Studio's printer profiles, and community
-references such as [OpenBambuAPI](https://github.com/Doridian/OpenBambuAPI). The Ruida
+the comments in PrusaSlicer's, Bambu Studio's and Anycubic Slicer Next's printer
+profiles, Anycubic's published [Kobra 3 firmware source](https://github.com/ANYCUBIC-3D/Kobra3),
+and community references such as [OpenBambuAPI](https://github.com/Doridian/OpenBambuAPI)
+and [Rinkhals](https://github.com/jbatonnet/Rinkhals). The Ruida
 `.rd` format and command meanings follow the reverse-engineering in
 [MeerK40t](https://github.com/meerk40t/meerk40t) (MIT) and
 [jnweiger/ruida-laser](https://github.com/jnweiger/ruida-laser).
