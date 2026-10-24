@@ -30,6 +30,7 @@ toolbar.
 | **Prusa** — CORE One, MK4/MK4S, MK3.5, MINI, XL, MK3/MK3S | PrusaSlicer `.gcode` and binary `.bgcode` |
 | **Anycubic Kobra** — Kobra, Plus, Max, Neo; Kobra 2, 2 Neo, 2 Pro, 2 Plus, 2 Max; Kobra 3, 3 V2, 3 Max; Kobra S1, S1 Max; Kobra X | `.gcode` from Anycubic Slicer Next, OrcaSlicer or PrusaSlicer |
 | **QIDI** — Q1 Pro, Q2, Q2C; X-Max 3, X-Plus 3, X-Smart 3; X-Plus 4, X-Max 4; X-Plus 5, X-Smart 5; older X-Plus, X-Max, X-CF Pro | `.gcode` from QIDIStudio, OrcaSlicer or QIDISlicer |
+| **Creality K1** — K1, K1C, K1 Max, K1 SE (with or without a CFS) | `.gcode` from Creality Print (4.x and later) or OrcaSlicer |
 | **Thunder Laser Nova** and other **Ruida**-controlled laser cutters | `.rd` job files from LightBurn ("Save RD File") or RDWorks — read-only |
 
 Saving a `.gcode.3mf` rewrites the plate's G-code and its checksum so the printer
@@ -138,6 +139,7 @@ ventris/
   dialects/prusa.py     Prusa reference
   dialects/anycubic.py  Anycubic Kobra reference
   dialects/qidi.py      QIDI reference
+  dialects/creality.py  Creality K1 reference
   dialects/ruida.py     Ruida / Thunder Laser reference
   qt/                   Qt window, editor with lazy syntax highlighting, theme
 packaging/              PyInstaller build script, Windows installer script
@@ -150,12 +152,13 @@ Create `ventris/dialects/<machine>.py` that builds a `Profile` (see `prusa.py`):
 start from `common.marlin_commands(...)`, add or override entries, and list where each
 explanation comes from (`documented`, `vendor` or `community`). Register it in
 `ventris/dialects/__init__.py`. It then appears in the Machine menu and `detect()`
-lets it be chosen automatically: it gets the start and the end of the file (slicers
+lets it be chosen automatically: it gets the start (minus preview-image lines) and the end of the file (slicers
 like OrcaSlicer and PrusaSlicer name the printer in a settings block at the end) and
 the highest score wins. Return 1.0 only when the file names your machine or uses a
 command only it has; a slicer name alone is weaker evidence, since one slicer serves
 many brands (`anycubic.py` is a worked example). Set `kind="laser"` to get the laser
-state panel.
+state panel. If the machine numbers its fans differently from Bambu (P1 = part fan),
+set `fan_slots` so the machine-state panel follows (`creality.py` does).
 
 ## Known limitations
 
@@ -176,6 +179,11 @@ state panel.
   Box commands (CUT_FILAMENT, TOOL_CHANGE_START, ...) are explained from their names
   and where QIDI uses them, marked as community knowledge. The X-Max 3, X-Plus 3 and
   X-Smart 3 use the same commands but QIDI hasn't published their configuration.
+- The Creality K1's start and end routines and fan numbering are explained from the
+  K1 Klipper source and per-model configuration Creality publishes. Creality hasn't
+  published the K1's CFS (multi-color) code, so filament changes on a K1 with a CFS
+  are marked as community knowledge. Files for other Creality printers (Ender-3 V3,
+  K2) open with the K1 profile as the closest match but aren't covered.
 - Ruida doesn't document its command set either. The `.rd` decoder was checked
   against real jobs from a Thunder Laser Nova 35 saved by RDWorks; files saved by
   LightBurn should decode the same way but haven't been tested yet. Some settings
@@ -196,6 +204,7 @@ the comments in PrusaSlicer's, Bambu Studio's and Anycubic Slicer Next's printer
 profiles, Anycubic's published [Kobra 3 firmware source](https://github.com/ANYCUBIC-3D/Kobra3),
 QIDI's [QIDIStudio](https://github.com/QIDITECH/QIDIStudio) profiles and published
 printer configuration ([QIDITECH](https://github.com/QIDITECH) on GitHub),
+Creality's [K1 Klipper source and configuration](https://github.com/CrealityOfficial/K1_Series_Klipper),
 and community references such as [OpenBambuAPI](https://github.com/Doridian/OpenBambuAPI)
 and [Rinkhals](https://github.com/jbatonnet/Rinkhals). The Ruida
 `.rd` format and command meanings follow the reverse-engineering in

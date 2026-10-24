@@ -44,6 +44,7 @@ class Profile:
     detect: Callable[[str], float]
     vendor: str = ""  # short maker name for labels ("Bambu", "Prusa")
     kind: str = "printer"  # "printer" or "laser": picks the machine-state panel
+    fan_slots: dict[int, str] | None = None  # M106 P -> state field; None = Bambu-style
 
     def lookup(self, code: str) -> CommandInfo | None:
         if code in self.commands:

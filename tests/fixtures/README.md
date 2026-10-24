@@ -12,3 +12,7 @@
   QIDIStudio writes for a QIDI X-Plus 4 with a QIDI Box (PRINT_START, Klipper layer
   info, a filament change), with start, end and filament-change code taken from the
   X-Plus 4 printer profile shipped with QIDIStudio (AGPL-3.0).
+- `k1max_cp4_sample.gcode` — written for Ventris. A two-layer file in the shape
+  Creality Print 4.x (Cura-based) writes for a K1 Max: Cura-style ;LAYER:/;TYPE:/;MESH:
+  comments, START_PRINT/END_PRINT and Creality's fan numbering, modelled on the sample
+  prints in Creality's K1_Series_Klipper repository (GPL-3.0).

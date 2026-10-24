@@ -169,10 +169,10 @@ class MainWindow(QMainWindow):
         self._first_changed = None
         self._edit_timer.stop()
 
-        # Load the tracker before changing the profile, which refreshes the pane.
-        self._reset_tracker()
+        # Set the profile (its fan numbering feeds the tracker), then load the tracker.
         detected = detect_profile(detection_sample(doc.text))
         self.profile = detected
+        self._reset_tracker()
         self.profile_combo.blockSignals(True)
         self.profile_combo.setCurrentIndex(self.profiles.index(detected))
         self.profile_combo.blockSignals(False)
@@ -278,7 +278,8 @@ class MainWindow(QMainWindow):
         self._refresh_explanation()
 
     def _reset_tracker(self) -> None:
-        self.tracker = StateTracker(self.editor.toPlainText().split("\n"))
+        self.tracker = StateTracker(self.editor.toPlainText().split("\n"),
+                                    fan_slots=self.profile.fan_slots)
         self._build_timer.start()
 
     def _build_step(self) -> None:
@@ -303,7 +304,10 @@ class MainWindow(QMainWindow):
         self.explain_view.show_explanation(index + 1, raw, exp, after, changed)
 
     def _on_profile_changed(self, index: int) -> None:
+        fans_changed = self.profile.fan_slots != self.profiles[index].fan_slots
         self.profile = self.profiles[index]
+        if fans_changed and self.document is not None:
+            self._reset_tracker()
         self.explain_view.set_state_rows(state_rows(self.profile.kind))
         self._update_title()
         self._refresh_explanation()

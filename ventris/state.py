@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import copy
 import re
-from dataclasses import dataclass, fields
+from dataclasses import dataclass, field, fields
 
 from .parser import ParsedLine, parse_line
 
@@ -12,6 +12,8 @@ _LAYER_COMMENT = re.compile(r"layer num/total_layer_count:\s*(\d+)\s*/\s*(\d+)",
 _Z_HEIGHT = re.compile(r"Z_HEIGHT:\s*([-\d.]+)", re.I)
 _FEATURE = re.compile(r"(?:FEATURE|TYPE):\s*(.+)", re.I)  # Bambu Studio / PrusaSlicer
 _PRUSA_Z = re.compile(r"Z:([-\d.]+)$")
+_CURA_LAYER = re.compile(r"LAYER:(\d+)$")  # Cura / Creality Print 4: counts from 0
+_CURA_LAYER_COUNT = re.compile(r"LAYER_COUNT:(\d+)$")
 _PROGRESS_WORD = re.compile(r"(?<![A-Za-z])([PRL])([\d.]+)")  # skips QuietR / SportR
 _KEY_VALUE = re.compile(r"([A-Za-z_]+)=([-\d.]+)")
 
@@ -48,6 +50,8 @@ class MachineState:
     power_min: float | None = None
     power_max: float | None = None
     air_assist: bool | None = None
+    # M106 P number -> fan field; set from the profile (makers number fans differently)
+    fan_slots: dict[int, str] | None = field(default=None, compare=False, repr=False)
 
     def apply(self, line: ParsedLine) -> None:
         if line.comment:
@@ -70,6 +74,10 @@ class MachineState:
             self.layer = (self.layer or 0) + 1
         elif m := _PRUSA_Z.match(comment):
             self.z_height = float(m.group(1))
+        elif m := _CURA_LAYER.match(comment):
+            self.layer = int(m.group(1)) + 1
+        elif m := _CURA_LAYER_COUNT.match(comment):
+            self.total_layers = int(m.group(1))
 
 
 def _move(s: MachineState, line: ParsedLine) -> None:
@@ -120,19 +128,23 @@ def _number_setter(attr: str, letter: str = "S", cast=float, alt: str | None = N
     return handler
 
 
-_FAN_SLOTS = {1: "part_fan", 2: "aux_fan", 3: "chamber_fan"}
+# No P means P0. Bambu-style numbering: P0/P1 part fan, P2 auxiliary, P3 chamber.
+DEFAULT_FAN_SLOTS = {0: "part_fan", 1: "part_fan", 2: "aux_fan", 3: "chamber_fan"}
+
+
+def _fan_attr(s: MachineState, line: ParsedLine) -> str | None:
+    return (s.fan_slots or DEFAULT_FAN_SLOTS).get(int(line.number("P") or 0))
 
 
 def _fan_on(s: MachineState, line: ParsedLine) -> None:
-    slot = int(line.number("P") or 1)
-    attr = _FAN_SLOTS.get(slot)
+    attr = _fan_attr(s, line)
     speed = line.number("S")
     if attr:
         setattr(s, attr, round((255 if speed is None else speed) / 255 * 100))
 
 
 def _fan_off(s: MachineState, line: ParsedLine) -> None:
-    attr = _FAN_SLOTS.get(int(line.number("P") or 1))
+    attr = _fan_attr(s, line)
     if attr:
         setattr(s, attr, 0)
 
@@ -159,14 +171,16 @@ def _anycubic_start(s: MachineState, line: ParsedLine) -> None:
         s.hotend_target = args["EXTRUDERTEMP"]
 
 
-def _qidi_start(s: MachineState, line: ParsedLine) -> None:
-    """PRINT_START: QIDI's start macro homes and heats bed, nozzle and chamber."""
-    args = {k.upper(): float(v) for k, v in _KEY_VALUE.findall(line.params.get("_args", ""))}
-    _home(s, ParsedLine(raw="G28"))
-    for key, attr in (("BED", "bed_target"), ("HOTEND", "hotend_target"),
-                      ("CHAMBER", "chamber_target")):
-        if key in args:
-            setattr(s, attr, args[key])
+def _start_macro(**keys: str):
+    """A Klipper start macro that homes and heats: KEY=value words -> state fields."""
+    def handler(s: MachineState, line: ParsedLine) -> None:
+        args = {k.upper(): float(v)
+                for k, v in _KEY_VALUE.findall(line.params.get("_args", ""))}
+        _home(s, ParsedLine(raw="G28"))
+        for key, attr in keys.items():
+            if key in args:
+                setattr(s, attr, args[key])
+    return handler
 
 
 def _print_stats(s: MachineState, line: ParsedLine) -> None:
@@ -229,7 +243,11 @@ _HANDLERS = {
     "M220": _number_setter("speed_factor", cast=int),
     "M221": _number_setter("flow_factor", cast=int),
     # Klipper / QIDI
-    "PRINT_START": _qidi_start, "SET_PRINT_STATS_INFO": _print_stats,
+    "PRINT_START": _start_macro(BED="bed_target", HOTEND="hotend_target",  # QIDI
+                                CHAMBER="chamber_target"),
+    "START_PRINT": _start_macro(BED_TEMP="bed_target",  # Creality
+                                EXTRUDER_TEMP="hotend_target"),
+    "SET_PRINT_STATS_INFO": _print_stats,
     "SET_HEATER_TEMPERATURE": _set_heater,
     # Ruida laser jobs (lines produced by ventris.ruida)
     "MOVE_ABS": _laser_move("off", False), "MOVE_REL": _laser_move("off", True),
@@ -243,7 +261,7 @@ _HANDLERS = {
     "END_OF_FILE": _setter("laser", "off"),
 }
 
-FIELD_NAMES = [f.name for f in fields(MachineState)]
+FIELD_NAMES = [f.name for f in fields(MachineState) if f.name != "fan_slots"]
 
 
 class StateTracker:
@@ -254,10 +272,11 @@ class StateTracker:
     checkpoint[k] is the state *before* line k * interval runs.
     """
 
-    def __init__(self, lines: list[str], interval: int = 500):
+    def __init__(self, lines: list[str], interval: int = 500,
+                 fan_slots: dict[int, str] | None = None):
         self.interval = interval
         self.lines = lines
-        self._checkpoints: list[MachineState] = [MachineState()]
+        self._checkpoints: list[MachineState] = [MachineState(fan_slots=fan_slots)]
 
     def update_lines(self, lines: list[str], first_changed: int) -> None:
         self.lines = lines
