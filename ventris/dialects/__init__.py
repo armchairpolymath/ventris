@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 from ..reference import Profile
-from . import anycubic, bambu, prusa, ruida
+from . import anycubic, bambu, prusa, qidi, ruida
 
 _PROFILES: dict[str, Profile] = {p.key: p for p in [bambu.PROFILE, prusa.PROFILE, anycubic.PROFILE,
-                                                 ruida.PROFILE]}
+                                                 qidi.PROFILE, ruida.PROFILE]}
 
 
 def profiles() -> list[Profile]:

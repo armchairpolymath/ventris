@@ -29,6 +29,7 @@ toolbar.
 | **Bambu Lab** — X1, P1, A1 series | Bambu Studio `.gcode` and `.gcode.3mf` (plate sliced file) |
 | **Prusa** — CORE One, MK4/MK4S, MK3.5, MINI, XL, MK3/MK3S | PrusaSlicer `.gcode` and binary `.bgcode` |
 | **Anycubic Kobra** — Kobra, Plus, Max, Neo; Kobra 2, 2 Neo, 2 Pro, 2 Plus, 2 Max; Kobra 3, 3 V2, 3 Max; Kobra S1, S1 Max; Kobra X | `.gcode` from Anycubic Slicer Next, OrcaSlicer or PrusaSlicer |
+| **QIDI** — Q1 Pro, Q2, Q2C; X-Max 3, X-Plus 3, X-Smart 3; X-Plus 4, X-Max 4; X-Plus 5, X-Smart 5; older X-Plus, X-Max, X-CF Pro | `.gcode` from QIDIStudio, OrcaSlicer or QIDISlicer |
 | **Thunder Laser Nova** and other **Ruida**-controlled laser cutters | `.rd` job files from LightBurn ("Save RD File") or RDWorks — read-only |
 
 Saving a `.gcode.3mf` rewrites the plate's G-code and its checksum so the printer
@@ -136,6 +137,7 @@ ventris/
   dialects/bambu.py     Bambu Lab reference
   dialects/prusa.py     Prusa reference
   dialects/anycubic.py  Anycubic Kobra reference
+  dialects/qidi.py      QIDI reference
   dialects/ruida.py     Ruida / Thunder Laser reference
   qt/                   Qt window, editor with lazy syntax highlighting, theme
 packaging/              PyInstaller build script, Windows installer script
@@ -168,6 +170,12 @@ state panel.
   codes (M991, the layer form of M73) are explained from the comments in
   Anycubic's slicer profiles and marked as community knowledge. The Kobra 4 isn't
   covered yet: no public slicer profile for it was available to check against.
+- QIDI's Klipper printers run most of each print from QIDI's own macros. Those are
+  explained from the configuration QIDI publishes for the Q1 Pro, X-Plus 4, X-Max 4
+  and Q2. The QIDI Box (multi-color unit) runs from compiled code with no source, so
+  Box commands (CUT_FILAMENT, TOOL_CHANGE_START, ...) are explained from their names
+  and where QIDI uses them, marked as community knowledge. The X-Max 3, X-Plus 3 and
+  X-Smart 3 use the same commands but QIDI hasn't published their configuration.
 - Ruida doesn't document its command set either. The `.rd` decoder was checked
   against real jobs from a Thunder Laser Nova 35 saved by RDWorks; files saved by
   LightBurn should decode the same way but haven't been tested yet. Some settings
@@ -186,6 +194,8 @@ MeatPack format follows [MeatPack](https://github.com/scottmudge/OctoPrint-MeatP
 (BSD-3-Clause). Command explanations draw on Prusa's published G-code documentation,
 the comments in PrusaSlicer's, Bambu Studio's and Anycubic Slicer Next's printer
 profiles, Anycubic's published [Kobra 3 firmware source](https://github.com/ANYCUBIC-3D/Kobra3),
+QIDI's [QIDIStudio](https://github.com/QIDITECH/QIDIStudio) profiles and published
+printer configuration ([QIDITECH](https://github.com/QIDITECH) on GitHub),
 and community references such as [OpenBambuAPI](https://github.com/Doridian/OpenBambuAPI)
 and [Rinkhals](https://github.com/jbatonnet/Rinkhals). The Ruida
 `.rd` format and command meanings follow the reverse-engineering in

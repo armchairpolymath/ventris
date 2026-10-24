@@ -8,3 +8,7 @@
   Slicer Next writes for a Kobra 3 (G9111 start line, Klipper object labels,
   speed-mode M73, a filament-swap block), with start/end code taken from the Kobra 3
   printer profile shipped with OrcaSlicer (AGPL-3.0).
+- `qidi_xplus4_sample.gcode` — written for Ventris. A two-layer file in the shape
+  QIDIStudio writes for a QIDI X-Plus 4 with a QIDI Box (PRINT_START, Klipper layer
+  info, a filament change), with start, end and filament-change code taken from the
+  X-Plus 4 printer profile shipped with QIDIStudio (AGPL-3.0).

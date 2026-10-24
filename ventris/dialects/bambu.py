@@ -797,8 +797,11 @@ COMMENT_MARKERS = [
 ]
 
 
+_BAMBU_M1002 = re.compile(r"^M1002 [a-z_]", re.M)  # QIDI's M1002 takes R1/A1/S1 instead
+
+
 def _detect(sample: str) -> float:
-    if "BambuStudio" in sample or "M1002" in sample or "M620" in sample:
+    if "BambuStudio" in sample or _BAMBU_M1002.search(sample) or "M620" in sample:
         return 1.0
     return 0.1
 

@@ -159,6 +159,36 @@ def _anycubic_start(s: MachineState, line: ParsedLine) -> None:
         s.hotend_target = args["EXTRUDERTEMP"]
 
 
+def _qidi_start(s: MachineState, line: ParsedLine) -> None:
+    """PRINT_START: QIDI's start macro homes and heats bed, nozzle and chamber."""
+    args = {k.upper(): float(v) for k, v in _KEY_VALUE.findall(line.params.get("_args", ""))}
+    _home(s, ParsedLine(raw="G28"))
+    for key, attr in (("BED", "bed_target"), ("HOTEND", "hotend_target"),
+                      ("CHAMBER", "chamber_target")):
+        if key in args:
+            setattr(s, attr, args[key])
+
+
+def _print_stats(s: MachineState, line: ParsedLine) -> None:
+    """SET_PRINT_STATS_INFO CURRENT_LAYER=3 TOTAL_LAYER=120 (Klipper)."""
+    args = {k.upper(): float(v) for k, v in _KEY_VALUE.findall(line.params.get("_args", ""))}
+    if "CURRENT_LAYER" in args:
+        s.layer = int(args["CURRENT_LAYER"])
+    if "TOTAL_LAYER" in args:
+        s.total_layers = int(args["TOTAL_LAYER"])
+
+
+_HEATERS = {"extruder": "hotend_target", "heater_bed": "bed_target", "chamber": "chamber_target"}
+
+
+def _set_heater(s: MachineState, line: ParsedLine) -> None:
+    """SET_HEATER_TEMPERATURE HEATER=extruder TARGET=220 (Klipper)."""
+    heater = re.search(r"HEATER=(\w+)", line.params.get("_args", ""), re.I)
+    target = re.search(r"TARGET=([-\d.]+)", line.params.get("_args", ""), re.I)
+    if heater and target and heater.group(1) in _HEATERS:
+        setattr(s, _HEATERS[heater.group(1)], float(target.group(1)))
+
+
 def _tool(s: MachineState, line: ParsedLine) -> None:
     try:
         slot = int(line.code[1:])
@@ -198,6 +228,9 @@ _HANDLERS = {
     "M204": _number_setter("acceleration"),
     "M220": _number_setter("speed_factor", cast=int),
     "M221": _number_setter("flow_factor", cast=int),
+    # Klipper / QIDI
+    "PRINT_START": _qidi_start, "SET_PRINT_STATS_INFO": _print_stats,
+    "SET_HEATER_TEMPERATURE": _set_heater,
     # Ruida laser jobs (lines produced by ventris.ruida)
     "MOVE_ABS": _laser_move("off", False), "MOVE_REL": _laser_move("off", True),
     "MOVE_REL_X": _laser_move("off", True), "MOVE_REL_Y": _laser_move("off", True),
